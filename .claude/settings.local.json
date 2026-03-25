@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(DATABASE_URL=postgresql://localhost/test python -c \"from config import DATABASE_URL; print\\(''config ok:'', DATABASE_URL[:20]\\)\")",
+      "Bash(curl:*)",
+      "Bash(python -c \"import main\")",
+      "Bash(python -c \"import main; print\\(''OK''\\)\")",
+      "Bash(timeout /T 3 /NOBREAK)",
+      "Bash(python -c \"import sys,json; routes=[r[''''path''''] for r in json.load\\(sys.stdin\\)[''''paths'''']]; print\\(''''\\\\n''''.join\\(routes\\)\\)\")",
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(''''\\\\n''''.join\\(data[''''paths''''].keys\\(\\)\\)\\)\")",
+      "Bash(netstat -ano)",
+      "Bash(source .venv/Scripts/activate)",
+      "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(python:*)",
+      "Bash(python -c \":*)",
+      "Bash(tasklist /FI \"PID eq 101832\")",
+      "Bash(tasklist /FI \"PID eq 126128\")",
+      "Bash(taskkill /F /PID 101832)",
+      "Bash(git --version)"
+    ]
+  }
+}
