@@ -32,7 +32,11 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     elif body.get("chats_updates"):
         last = (body["chats_updates"][0].get("after_update") or {}).get("last_message")
         if last and last.get("from_me"):
-            msg = last
+            chat_id = last.get("chat_id", "")
+            is_group = "@g.us" in chat_id
+            is_self_chat = last.get("from") == MY_WHATSAPP
+            if is_group or is_self_chat:
+                msg = last
     if not msg:
         return {"status": "ignored"}
 
