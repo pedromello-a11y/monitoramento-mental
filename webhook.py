@@ -27,9 +27,6 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     msg = (body.get("messages") or [{}])[0]
     sender = msg.get("from", "")
 
-    import logging, json as _j
-    logging.warning("WEBHOOK_BODY: %s", _j.dumps(body, ensure_ascii=False)[:1000])
-
     if sender != MY_WHATSAPP and not msg.get("from_me", False):
         return {"status": "ignored"}
 
