@@ -128,10 +128,14 @@ PERGUNTAS = [
         "label": (
             "🍺 *Álcool*\n\n"
             "Como foi seu consumo de álcool hoje?\n\n"
-            "Nenhum · Pouco · Moderado · Muito"
+            "*0* = Nenhum\n"
+            "*1* = Pouco\n"
+            "*2* = Moderado\n"
+            "*3* = Muito"
         ),
         "tipo_input": "opcoes",
         "opcoes_json": ["Nenhum", "Pouco", "Moderado", "Muito"],
+        "mapa_numerico": {"0": "Nenhum", "1": "Pouco", "2": "Moderado", "3": "Muito"},
         "obrigatorio": True,
         "ordem": 9,
         "ativo": True,

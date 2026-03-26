@@ -266,6 +266,9 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
             except (ValueError, TypeError):
                 valor = None
         elif valor is not None and pergunta["tipo_input"] == "opcoes":
+            mapa = pergunta.get("mapa_numerico", {})
+            if str(valor).strip() in mapa:
+                valor = mapa[str(valor).strip()]
             if str(valor) not in [str(o) for o in pergunta["opcoes_json"]]:
                 valor = None
         elif pergunta["tipo_input"] == "nota_livre":
