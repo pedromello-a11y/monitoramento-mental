@@ -37,6 +37,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
         return {"status": "ignored"}
 
     sender = msg.get("from") or msg.get("chat_id", "").split("@")[0]
+    reply_to = msg.get("chat_id") or sender  # grupos: chat_id = "...@g.us"
 
     if sender != MY_WHATSAPP:
         return {"status": "ignored"}
@@ -65,14 +66,14 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
                 if _active and _active["passo_atual"] == 13:
                     try:
                         from audio_processor import process_audio
-                        await send_message(sender, "🎤 Áudio recebido, processando...")
+                        await send_message(reply_to, "🎤 Áudio recebido, processando...")
                         background_tasks.add_task(
                             process_audio, audio_id, sender, _uid,
                             _active["id"], _active["data_referencia"],
                         )
                         return {"status": "ok", "type": "audio_processing"}
                     except ImportError:
-                        await send_message(sender, "Processamento de áudio indisponível no momento. Escolha Texto ou Pular.")
+                        await send_message(reply_to, "Processamento de áudio indisponível no momento. Escolha Texto ou Pular.")
                         return {"status": "ok", "type": "audio_unavailable"}
         return {"status": "ok", "sender": sender, "type": "audio", "content": audio_id}
     else:
@@ -98,9 +99,9 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
                 "SELECT streak_atual, streak_maximo FROM streak WHERE user_id = $1", user_id
             )
         if row:
-            await send_message(sender, f"🔥 Sequência atual: {row['streak_atual']} dias | Máximo: {row['streak_maximo']} dias")
+            await send_message(reply_to, f"🔥 Sequência atual: {row['streak_atual']} dias | Máximo: {row['streak_maximo']} dias")
         else:
-            await send_message(sender, "Nenhum streak registrado ainda.")
+            await send_message(reply_to, "Nenhum streak registrado ainda.")
         return {"status": "comando_streak"}
 
     if cmd == "/resumo":
@@ -122,7 +123,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
                 user_id,
             )
         if not row or not row["dias"]:
-            await send_message(sender, "Nenhum registro nos últimos 7 dias.")
+            await send_message(reply_to, "Nenhum registro nos últimos 7 dias.")
         else:
             msg = (
                 f"📊 Últimos 7 dias ({row['dias']} registros)\n\n"
@@ -131,7 +132,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
                 f"🧠 Mental: {row['mental']}  💼 Stress trab: {row['stress']}\n"
                 f"🚬 Cigarros: {row['cigarros']}"
             )
-            await send_message(sender, msg)
+            await send_message(reply_to, msg)
         return {"status": "comando_resumo"}
 
     if cmd == "/remedios":
@@ -141,13 +142,13 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
                 user_id,
             )
         if not rows:
-            await send_message(sender, "Nenhum remédio cadastrado.")
+            await send_message(reply_to, "Nenhum remédio cadastrado.")
         else:
             linhas = []
             for r in rows:
                 dose_str = f" ({r['dose']})" if r["dose"] else ""
                 linhas.append(f"💊 {r['nome']}{dose_str} — padrão: {r['dose_padrao']}")
-            await send_message(sender, "Remédios ativos:\n" + "\n".join(linhas))
+            await send_message(reply_to, "Remédios ativos:\n" + "\n".join(linhas))
         return {"status": "comando_remedios"}
 
     if cmd == "/ontem":
@@ -160,14 +161,14 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
             )
         if sessao_ontem:
             if sessao_ontem["status"] == "concluido":
-                await send_message(sender, "Já existe check-in para ontem. ✅")
+                await send_message(reply_to, "Já existe check-in para ontem. ✅")
                 return {"status": "ontem_ja_concluido"}
             if sessao_ontem["status"] == "em_andamento":
                 pergunta = get_pergunta_por_passo(sessao_ontem["passo_atual"])
                 if pergunta:
-                    ok = await send_buttons(sender, pergunta["label"], pergunta["opcoes_json"])
+                    ok = await send_buttons(reply_to, pergunta["label"], pergunta["opcoes_json"])
                     if not ok:
-                        await send_message(sender, pergunta["label"])
+                        await send_message(reply_to, pergunta["label"])
                 return {"status": "ontem_retomado"}
             # cancelado ou abandonado — reativar
             async with pool.acquire() as conn:
@@ -185,9 +186,9 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
                 )
         pergunta = get_pergunta_inicial()
         if pergunta:
-            ok = await send_buttons(sender, pergunta["label"], pergunta["opcoes_json"])
+            ok = await send_buttons(reply_to, pergunta["label"], pergunta["opcoes_json"])
             if not ok:
-                await send_message(sender, pergunta["label"])
+                await send_message(reply_to, pergunta["label"])
         return {"status": "ontem_iniciado"}
 
     if cmd == "/congelar":
@@ -202,7 +203,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
             )
         count = row["total"] if row else 0
         if count >= 3:
-            await send_message(sender, "Você já usou 3 congelamentos este mês.")
+            await send_message(reply_to, "Você já usou 3 congelamentos este mês.")
             return {"status": "congelar_limite"}
         async with pool.acquire() as conn:
             await conn.execute(
@@ -211,7 +212,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
                 user_id,
             )
         restantes = 2 - count
-        await send_message(sender, f"Streak congelado hoje. Você tem {restantes} congelamento(s) restante(s) este mês.")
+        await send_message(reply_to, f"Streak congelado hoje. Você tem {restantes} congelamento(s) restante(s) este mês.")
         return {"status": "congelar_ok"}
 
     if cmd == "/cancelar":
@@ -223,9 +224,9 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
                     "WHERE id = $1",
                     active["id"],
                 )
-            await send_message(sender, "Check-in cancelado. Você pode retomar quando quiser com /checkin.")
+            await send_message(reply_to, "Check-in cancelado. Você pode retomar quando quiser com /checkin.")
             return {"status": "cancelled"}
-        await send_message(sender, "Nenhum check-in em andamento.")
+        await send_message(reply_to, "Nenhum check-in em andamento.")
         return {"status": "no_active_session"}
 
     active = await get_active_session(user_id, date.today())
@@ -244,9 +245,9 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
                 )
             proxima = get_pergunta_por_passo(proximo_passo) if proximo_passo else None
             if proxima:
-                ok = await send_buttons(sender, proxima["label"], proxima["opcoes_json"])
+                ok = await send_buttons(reply_to, proxima["label"], proxima["opcoes_json"])
                 if not ok:
-                    ok = await send_message(sender, proxima["label"])
+                    ok = await send_message(reply_to, proxima["label"])
                 return {"status": "ok", "skipped": "remedios"}
             return {"status": "invalid_answer"}
 
@@ -262,16 +263,16 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
         elif pergunta["tipo_input"] == "nota_livre":
             valor = content  # qualquer conteúdo é válido
         if valor is None:
-            ok = await send_buttons(sender, pergunta["label"], pergunta["opcoes_json"])
+            ok = await send_buttons(reply_to, pergunta["label"], pergunta["opcoes_json"])
             if not ok:
-                await send_message(sender, pergunta["label"])
+                await send_message(reply_to, pergunta["label"])
             return {"status": "invalid_answer"}
 
         campo = pergunta["campo"]
 
         # Seleção de "Áudio" no passo 13 — manter sessão no passo e aguardar o áudio
         if campo == "nota" and str(valor).strip() == "Áudio":
-            await send_message(sender, "Pode enviar o áudio agora. 🎤")
+            await send_message(reply_to, "Pode enviar o áudio agora. 🎤")
             return {"status": "ok", "aguardando_audio": True}
 
         proximo_passo = get_proximo_passo(active["passo_atual"])
@@ -301,9 +302,9 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
         proxima = get_pergunta_por_passo(proximo_passo) if proximo_passo else None
 
         if proxima:
-            ok = await send_buttons(sender, proxima["label"], proxima["opcoes_json"])
+            ok = await send_buttons(reply_to, proxima["label"], proxima["opcoes_json"])
             if not ok:
-                ok = await send_message(sender, proxima["label"])
+                ok = await send_message(reply_to, proxima["label"])
         else:
             async with pool.acquire() as conn:
                 await conn.execute(
@@ -334,7 +335,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
                         """,
                         user_id, date.today(), ontem,
                     )
-            await send_message(sender, "✅ Check-in de hoje concluído. Até amanhã!")
+            await send_message(reply_to, "✅ Check-in de hoje concluído. Até amanhã!")
             return {"status": "checkin_completed", "session_status": "concluido"}
 
         return {
@@ -353,7 +354,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
 
     # sem sessão ativa — verificar se já concluiu hoje antes de criar nova
     if await get_completed_session(user_id, date.today()):
-        await send_message(sender, "Você já fez o check-in de hoje. ✅")
+        await send_message(reply_to, "Você já fez o check-in de hoje. ✅")
         return {"status": "already_completed"}
 
     if not content or content.strip() != "/checkin":
@@ -364,9 +365,9 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     if not pergunta:
         return {"status": "no_question"}
 
-    ok = await send_buttons(sender, pergunta["label"], pergunta["opcoes_json"])
+    ok = await send_buttons(reply_to, pergunta["label"], pergunta["opcoes_json"])
     if not ok:
-        ok = await send_message(sender, pergunta["label"])
+        ok = await send_message(reply_to, pergunta["label"])
 
     return {
         "status": "ok" if ok else "send_failed",
