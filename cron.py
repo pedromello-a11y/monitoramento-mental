@@ -1,6 +1,6 @@
 from datetime import date
 from fastapi import APIRouter, Header, HTTPException
-from config import INTERNAL_CRON_SECRET
+from config import INTERNAL_CRON_SECRET, APP_URL
 from database import get_pool
 from whapi import send_message
 
@@ -72,7 +72,7 @@ async def cron_checkin(x_cron_secret: str | None = Header(default=None)):
                 "SELECT streak_atual FROM streak WHERE user_id = $1", u["id"]
             )
         streak_atual = row["streak_atual"] if row else 0
-        await send_message(u["whatsapp"], f"🔥 {streak_atual} dias seguidos. Hora do check-in de hoje.")
+        await send_message(u["whatsapp"], f"🔥 {streak_atual} dias seguidos. Hora do check-in de hoje.\n\nResponda */checkin* aqui ou acesse:\n{APP_URL}/checkin-web")
         async with pool.acquire() as conn:
             await _registrar_envio(conn, u["id"], "checkin_22h", idem_key)
         sent += 1
@@ -104,7 +104,7 @@ async def cron_lembrete1(x_cron_secret: str | None = Header(default=None)):
             if await _ja_enviado_hoje(conn, idem_key):
                 skipped_already_sent += 1
                 continue
-        await send_message(u["whatsapp"], "Ainda dá tempo para registrar hoje. 🙂")
+        await send_message(u["whatsapp"], f"Ainda dá tempo para registrar hoje. 🙂\n\n*/checkin* aqui ou pelo site:\n{APP_URL}/checkin-web")
         async with pool.acquire() as conn:
             await _registrar_envio(conn, u["id"], "lembrete_22h30", idem_key)
         sent += 1
@@ -142,7 +142,7 @@ async def cron_lembrete2(x_cron_secret: str | None = Header(default=None)):
         streak_atual = row["streak_atual"] if row else 0
         await send_message(
             u["whatsapp"],
-            f"⚠️ Última chance hoje.\n{streak_atual} dias. Vai perder por falta de 60 segundos?",
+            f"⚠️ Última chance hoje.\n{streak_atual} dias. Vai perder por falta de 60 segundos?\n\n*/checkin* aqui ou:\n{APP_URL}/checkin-web",
         )
         async with pool.acquire() as conn:
             await _registrar_envio(conn, u["id"], "lembrete_23h15", idem_key)

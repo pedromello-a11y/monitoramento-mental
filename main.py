@@ -4,6 +4,7 @@ from database import init_pool, close_pool
 import webhook
 import cron
 import checkin_web
+import dashboard
 
 
 @asynccontextmanager
@@ -17,6 +18,7 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(webhook.router)
 app.include_router(cron.router)
 app.include_router(checkin_web.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/health")
