@@ -395,7 +395,8 @@ async def dashboard_get():
                 SELECT ROUND(AVG(dor_fisica),1) AS dor, ROUND(AVG(energia),1) AS energia,
                        ROUND(AVG(sono_horas),1) AS sono_h, ROUND(AVG(sono_qualidade),1) AS sono_q,
                        ROUND(AVG(saude_mental),1) AS mental, ROUND(AVG(stress_trabalho),1) AS stress_t,
-                       ROUND(AVG(stress_relacionamento),1) AS stress_r, ROUND(AVG(cigarros),1) AS cigarros
+                       ROUND(AVG(stress_relacionamento),1) AS stress_r, ROUND(AVG(cigarros),1) AS cigarros,
+                       ROUND(AVG(desempenho_social),1) AS social
                 FROM checkins WHERE user_id = 1 AND data >= CURRENT_DATE - 6
                 """,
             )
@@ -492,6 +493,11 @@ async def dashboard_get():
 </div>"""
     else:
         m = media
+        # Moda do álcool nos últimos 7 dias
+        alcool_vals = [r["alcool"] for r in rows if r["alcool"]]
+        alcool_moda = max(set(alcool_vals), key=alcool_vals.count) if alcool_vals else None
+        alcool_display = alcool_moda or "\u2014"
+
         body += f"""
 <div class="sec-label">M\xe9dia da semana</div>
 <div class="dim-grid">
@@ -505,17 +511,17 @@ async def dashboard_get():
     <div class="dim-title">\u26a1 Energia &amp; Sono</div>
     {_dim_row("Energia", m["energia"] if m else None)}
     {_dim_row("Sono (h)", m["sono_h"] if m else None, max_val=10)}
-    {_dim_row("Qualidade", m["sono_q"] if m else None)}
+    {_dim_row("Qualidade sono", m["sono_q"] if m else None)}
   </div>
   <div class="dim-card">
-    <div class="dim-title">\u2764 F\xedsico</div>
+    <div class="dim-title">\u2764 F\xedsico &amp; Social</div>
     {_dim_row("Dor f\xedsica", m["dor"] if m else None, invert=True)}
-    {_dim_row("Social", None)}
+    {_dim_row("Desempenho social", m["social"] if m else None)}
   </div>
   <div class="dim-card">
     <div class="dim-title">\u2615 H\xe1bitos</div>
     {_dim_row("Cigarros/dia", m["cigarros"] if m else None, max_val=10, invert=True)}
-    {_dim_row("\xc1lcool", None)}
+    <div class="dim-row"><span class="dim-lbl">\xc1lcool (freq.)</span><span style="font-size:13px;font-weight:600;color:var(--text)">{alcool_display}</span></div>
   </div>
 </div>"""
 
