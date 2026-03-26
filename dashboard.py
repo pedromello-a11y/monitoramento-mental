@@ -575,12 +575,20 @@ async def dashboard_get():
 </div>"""
 
     # ---- Hero card ----
+    checkin_hoje = rows[0] if rows and rows[0]["data"] == hoje else None
     ultimo = rows[0] if rows else None
-    mental_hoje = ultimo["saude_mental"] if ultimo else None
-    energia_hoje = ultimo["energia"] if ultimo else None
-    dor_hoje = ultimo["dor_fisica"] if ultimo else None
-    sono_hoje = ultimo["sono_horas"] if ultimo else None
-    ex_hoje = ultimo["exercicio"] if ultimo else None
+    mental_hoje = checkin_hoje["saude_mental"] if checkin_hoje else None
+    energia_hoje = checkin_hoje["energia"] if checkin_hoje else None
+    dor_hoje = checkin_hoje["dor_fisica"] if checkin_hoje else None
+    sono_hoje = checkin_hoje["sono_horas"] if checkin_hoje else None
+    ex_hoje = checkin_hoje["exercicio"] if checkin_hoje else None
+    # Se não tem check-in hoje, usa o último disponível para contexto
+    if mental_hoje is None and ultimo:
+        mental_hoje = ultimo["saude_mental"]
+        energia_hoje = ultimo["energia"]
+        dor_hoje = ultimo["dor_fisica"]
+        sono_hoje = ultimo["sono_horas"]
+        ex_hoje = ultimo["exercicio"]
     frase = _hero_frase(mental_hoje, energia_hoje, dor_hoje)
     score_color = _score_color(mental_hoje) if mental_hoje is not None else "#4A4A5A"
     score_display = mental_hoje if mental_hoje is not None else "\u2014"
@@ -588,6 +596,12 @@ async def dashboard_get():
         data_display = ultimo["data"].strftime("%-d de %B") if ultimo else "sem dados"
     except ValueError:
         data_display = ultimo["data"].strftime("%d de %B") if ultimo else "sem dados"
+
+    checkin_status = (
+        '<span style="background:#14532d;color:#86EFAC;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600">\u2713 check-in feito</span>'
+        if checkin_hoje else
+        '<span style="background:#1e293b;color:#94A3B8;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600">check-in pendente</span>'
+    )
 
     chips = ""
     if energia_hoje is not None:
@@ -602,42 +616,25 @@ async def dashboard_get():
 
     body += f"""
 <div class="hero">
-  <div class="hero-label">Sa\xfade mental \u2014 {data_display}</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <div class="hero-label" style="padding:0;margin:0">Sa\xfade mental \u2014 {data_display}</div>
+    {checkin_status}
+  </div>
   <div class="hero-score" style="color:{score_color}">{score_display}<span> /10</span></div>
   <div class="hero-frase">{frase}</div>
   {f'<div class="hero-meta">{chips}</div>' if chips else ''}
 </div>"""
 
     # ---- Relato do dia ----
-    nota_hoje_raw = ultimo["nota_raw"] if ultimo else None
-    nota_hoje_sent = ultimo["nota_sentimento"] if ultimo else None
-    nota_hoje_cats = ultimo["nota_categorias"] if ultimo else None
-    if nota_hoje_raw and nota_hoje_raw.strip() not in ("Pular", "Texto", ""):
-        # Mostrar nota existente
-        if nota_hoje_sent:
-            resumo_hoje = nota_hoje_raw[:90] + ("\u2026" if len(nota_hoje_raw) > 90 else "")
-            sent_b = _sent_badge(nota_hoje_sent)
-            tags_hoje = "".join(f'<span class="note-tag">{c}</span>' for c in (nota_hoje_cats or []))
-        else:
-            analysis_hoje = await _process_nota_completa(nota_hoje_raw)
-            resumo_hoje = analysis_hoje.get("resumo") or nota_hoje_raw[:90]
-            sent_b = _sent_badge(analysis_hoje.get("sentimento", ""))
-            tags_hoje = "".join(f'<span class="note-tag">{c}</span>' for c in (analysis_hoje.get("categorias") or []))
-        body += f"""
-<div class="sec-label">Relato do dia</div>
-<div class="relato-wrap">
-<div class="relato-card">
-  <div class="note-header">{sent_b}</div>
-  <div class="note-resumo">{resumo_hoje}</div>
-  {f'<div class="note-cats">{tags_hoje}</div>' if tags_hoje else ''}
-  <details class="note-expand"><summary>Ver nota completa</summary><div class="note-raw-text">{nota_hoje_raw}</div></details>
-</div>
-</div>"""
-    else:
-        # Mostrar card de entrada
+    # Verificar se hoje já tem nota (só conta se o check-in mais recente for de hoje)
+    nota_hoje_raw = checkin_hoje["nota_raw"] if checkin_hoje else None
+    nota_hoje_tem = bool(nota_hoje_raw and nota_hoje_raw.strip() not in ("Pular", "Texto", ""))
+
+    body += '<div class="sec-label">Relato</div><div class="relato-wrap">'
+
+    if not nota_hoje_tem:
+        # card de entrada
         body += """
-<div class="sec-label">Relato do dia</div>
-<div class="relato-wrap">
 <div class="relato-card" id="relato-card">
   <div class="relato-prompt">Como foi o seu dia?</div>
   <div class="relato-actions" id="relato-actions">
@@ -653,8 +650,41 @@ async def dashboard_get():
     <button class="relato-btn relato-btn-rec" id="btn-rec" onclick="toggleGravacao()">&#9210; Iniciar grava&ccedil;&atilde;o</button>
     <button class="relato-submit" id="btn-send-audio" style="display:none" onclick="enviarAudio()">Enviar &aacute;udio</button>
   </div>
-</div>
 </div>"""
+
+    # Mostrar todos os relatos dos últimos 7 dias
+    notas_exibir = [
+        r for r in (rows if rows else [])
+        if r["nota_raw"] and r["nota_raw"].strip() not in ("Pular", "Texto", "")
+    ]
+    for nr in notas_exibir:
+        nr_raw = nr["nota_raw"]
+        nr_sent = nr["nota_sentimento"]
+        nr_cats = nr["nota_categorias"]
+        nr_data = nr["data"].strftime("%d/%m")
+        is_hoje = nr["data"] == hoje
+        if nr_sent:
+            nr_resumo = nr_raw[:120] + ("\u2026" if len(nr_raw) > 120 else "")
+            sent_b = _sent_badge(nr_sent)
+            nr_tags = "".join(f'<span class="note-tag">{c}</span>' for c in (nr_cats or []))
+        else:
+            an = await _process_nota_completa(nr_raw)
+            nr_resumo = an.get("resumo") or nr_raw[:120]
+            sent_b = _sent_badge(an.get("sentimento", ""))
+            nr_tags = "".join(f'<span class="note-tag">{c}</span>' for c in (an.get("categorias") or []))
+        lbl = "Hoje" if is_hoje else nr_data
+        body += f"""
+<div class="relato-card" style="margin-top:10px">
+  <div class="note-header">
+    <span class="note-date-lbl">{lbl}</span>
+    {sent_b}
+  </div>
+  <div class="note-resumo">{nr_resumo}</div>
+  {f'<div class="note-cats">{nr_tags}</div>' if nr_tags else ''}
+  <details class="note-expand"><summary>Ver relato completo</summary><div class="note-raw-text">{nr_raw}</div></details>
+</div>"""
+
+    body += '</div>'  # relato-wrap
 
     # ---- Streak + heatmap ----
     s_atual = streak_row["streak_atual"] if streak_row else 0
@@ -725,14 +755,16 @@ async def dashboard_get():
         remed_prio_html = ""
         for nome_prio in ["Rivotril", "Zolpidem"]:
             doses = hist_doses.get(nome_prio, [])
+            # doses está em ordem: mais recente primeiro (mesma ordem de rows DESC)
             dose_hoje_val = doses[0][1] if doses else None
             dose_display = f'{dose_hoje_val:g}' if dose_hoje_val is not None else "\u2014"
             max_dose = max((d[1] for d in doses), default=1) or 1
             barras = ""
-            doses_7 = doses[-7:]
-            for i, (ds_r, qtd) in enumerate(reversed(doses_7)):
+            # mostrar em ordem cronológica (mais antigo → mais recente)
+            doses_crono = list(reversed(doses[:7]))
+            for i, (ds_r, qtd) in enumerate(doses_crono):
                 h = max(4, int((qtd / max_dose) * 40))
-                cls = "remed-hist-bar today" if i == len(doses_7) - 1 else "remed-hist-bar"
+                cls = "remed-hist-bar today" if i == len(doses_crono) - 1 else "remed-hist-bar"
                 barras += f'<div style="flex:1;display:flex;flex-direction:column;align-items:center"><div class="{cls}" style="height:{h}px;width:100%"></div><div class="remed-hist-label">{ds_r}</div></div>'
             hist_inner = barras if barras else '<span style="font-size:12px;color:var(--text3)">sem hist\xf3rico</span>'
             remed_prio_html += f"""
@@ -843,40 +875,6 @@ async def dashboard_get():
                 f'</div></div>'
             )
         body += '</div>'
-
-        # ---- Notas do diário ----
-        notas_entries = [
-            (r["data"].strftime("%d/%m"), r["nota_raw"], r["nota_sentimento"], r["nota_categorias"])
-            for r in rows
-            if r["nota_raw"] and r["nota_raw"] not in ("Pular", "Texto", "")
-        ]
-        if notas_entries:
-            body += '<div class="sec-label">Notas do di\xe1rio</div><div class="notes-wrap">'
-            for data_str_n, nota_raw, sentimento, categorias in notas_entries:
-                if not sentimento:
-                    analysis = await _process_nota(nota_raw)
-                    resumo = analysis.get("resumo") or nota_raw[:90]
-                    sentimento = analysis.get("sentimento", "")
-                    categorias = analysis.get("categorias", [])
-                else:
-                    resumo = nota_raw[:90] + ("\u2026" if len(nota_raw) > 90 else "")
-
-                badge = _sent_badge(sentimento)
-                tags = "".join(f'<span class="note-tag">{c}</span>' for c in (categorias or []))
-                body += f"""
-<div class="note-card">
-  <div class="note-header">
-    <span class="note-date-lbl">{data_str_n}</span>
-    {badge}
-  </div>
-  <div class="note-resumo">{resumo}</div>
-  {f'<div class="note-cats">{tags}</div>' if tags else ''}
-  <details class="note-expand">
-    <summary>Ver nota completa</summary>
-    <div class="note-raw-text">{nota_raw}</div>
-  </details>
-</div>"""
-            body += '</div>'
 
     return _render(body)
 
