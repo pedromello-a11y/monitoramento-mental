@@ -598,10 +598,10 @@ async def dashboard_get():
                 if not tomados:
                     continue
                 has_remed = True
-                pills = "".join(
-                    f'<span class="pill"><span class="pill-dot"></span>{i["nome"]}{f" \xd7{i[\"qtd\"]}" if i.get("qtd") else ""}</span>'
-                    for i in tomados
-                )
+                def _pill(i):
+                    qtd = f' \xd7{i["qtd"]}' if i.get("qtd") else ""
+                    return f'<span class="pill"><span class="pill-dot"></span>{i["nome"]}{qtd}</span>'
+                pills = "".join(_pill(i) for i in tomados)
                 remed_html += f'<div class="remed-day"><div class="remed-day-date">{data_str}</div>{pills}</div>'
             except Exception:
                 pass
