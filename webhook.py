@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 from fastapi import APIRouter, BackgroundTasks, Request
-from config import MY_WHATSAPP
+from config import MY_WHATSAPP, ALLOWED_GROUP_ID
 from database import get_pool
 from whapi import send_message, send_buttons
 from db_session import get_or_create_session, get_active_session, get_completed_session
@@ -25,10 +25,17 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
 
     body = await request.json()
 
-    if not body.get("messages"):
-        return {"status": "ignored"}
-    msg = body["messages"][0]
-    if msg.get("source") == "api":
+    msg = None
+    if body.get("messages"):
+        candidate = body["messages"][0]
+        if candidate.get("source") != "api":
+            msg = candidate
+    elif body.get("chats_updates") and ALLOWED_GROUP_ID:
+        last = (body["chats_updates"][0].get("after_update") or {}).get("last_message")
+        if last and last.get("from_me") and last.get("source") != "api":
+            if last.get("chat_id") == ALLOWED_GROUP_ID:
+                msg = last
+    if not msg:
         return {"status": "ignored"}
 
     sender = msg.get("from") or msg.get("chat_id", "").split("@")[0]
