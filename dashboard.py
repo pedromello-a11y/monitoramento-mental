@@ -379,7 +379,7 @@ _HTML_SHELL = """<!DOCTYPE html>
 <body>
 BODY_PLACEHOLDER
 <script>
-function openEdit(d,dor,en,sh,sq,me,st,sr,al,ci,so){
+function openEdit(d,dor,en,sh,sq,me,st,sr,al,ci,so,rj){
   document.getElementById('ed-data').value=d;
   document.getElementById('ed-dor').value=dor;
   document.getElementById('ed-en').value=en;
@@ -391,9 +391,25 @@ function openEdit(d,dor,en,sh,sq,me,st,sr,al,ci,so){
   document.getElementById('ed-al').value=al;
   document.getElementById('ed-ci').value=ci;
   document.getElementById('ed-so').value=so;
+  // preencher quantidades dos remédios
+  var remedios=document.querySelectorAll('.ed-rem-qtd');
+  remedios.forEach(function(inp){
+    var nome=inp.dataset.nome;
+    var qtd=1;
+    if(rj){try{var arr=JSON.parse(rj);arr.forEach(function(r){if(r.nome===nome)qtd=r.qtd||1;});}catch(e){}}
+    inp.value=qtd;
+  });
   document.getElementById('modal').classList.add('open');
 }
 function closeModal(){document.getElementById('modal').classList.remove('open');}
+function buildRemedJson(){
+  var arr=[];
+  document.querySelectorAll('.ed-rem-qtd').forEach(function(inp){
+    var qtd=parseFloat(inp.value)||0;
+    arr.push({nome:inp.dataset.nome,qtd:qtd,tomado:qtd>0});
+  });
+  document.getElementById('ed-remed-json').value=JSON.stringify(arr);
+}
 function delDay(d){
   if(confirm('Remover o registro de '+d+'? Esta a\xe7\xe3o n\xe3o pode ser desfeita.')){
     document.getElementById('del-data').value=d;
@@ -475,9 +491,14 @@ function enviarAudio(){
     <div class="field"><label>\u2716 Cigarros</label><input name="cigarros" id="ed-ci" type="number" min="0"></div>
     <div class="field"><label>\u2600 Social</label><input name="desempenho_social" id="ed-so" type="number" min="0" max="10"></div>
   </div>
+  <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
+    <div style="font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">\U0001f48a Rem\xe9dios</div>
+    <div style="display:flex;flex-direction:column;gap:8px" id="ed-remed-list">REMED_MODAL_PLACEHOLDER</div>
+    <input type="hidden" name="remedios_tomados" id="ed-remed-json">
+  </div>
   <div class="modal-footer">
     <button type="button" class="btn-cancel" onclick="closeModal()">Cancelar</button>
-    <button type="submit" class="btn-save">Salvar altera\xe7\xf5es</button>
+    <button type="submit" class="btn-save" onclick="buildRemedJson()">Salvar altera\xe7\xf5es</button>
   </div>
   </form>
 </div>
@@ -489,8 +510,13 @@ function enviarAudio(){
 </html>"""
 
 
-def _render(body: str) -> str:
-    return _HTML_SHELL.replace("CSS_PLACEHOLDER", _CSS).replace("BODY_PLACEHOLDER", body)
+def _render(body: str, remed_modal_html: str = "") -> str:
+    return (
+        _HTML_SHELL
+        .replace("CSS_PLACEHOLDER", _CSS)
+        .replace("BODY_PLACEHOLDER", body)
+        .replace("REMED_MODAL_PLACEHOLDER", remed_modal_html)
+    )
 
 
 def _dim_row(label, val, max_val=10, invert=False):
@@ -867,6 +893,8 @@ async def dashboard_get():
             sh = r["sono_horas"]; al = r["alcool"] or ""; ex = r["exercicio"] or ""
             sq = r["sono_qualidade"]; st = r["stress_trabalho"]; sr = r["stress_relacionamento"]
             so = r["desempenho_social"]; ci = r["cigarros"]
+            rj_raw = r["remedios_tomados"]
+            rj_str = _json.dumps(rj_raw if isinstance(rj_raw, list) else (_json.loads(rj_raw) if rj_raw else [])).replace("'", "\\'")
             me_c = _score_color(me) if me is not None else "#4A4A5A"
             chips_h = ""
             if me is not None: chips_h += f'<span class="hist-chip" style="color:{me_c}">mental {me}</span>'
@@ -880,13 +908,31 @@ async def dashboard_get():
                 f'<span class="hist-date">{ds}</span>'
                 f'<div class="hist-vals">{chips_h}</div>'
                 f'<div class="hist-acts">'
-                f'<button class="act-btn" style="padding:4px 8px;font-size:11px" onclick="openEdit(\'{di}\',\'{dor or ""}\',\'{en or ""}\',\'{sh or ""}\',\'{sq or ""}\',\'{me or ""}\',\'{st or ""}\',\'{sr or ""}\',\'{al}\',\'{ci or ""}\',\'{so or ""}\')">\u270f</button>'
+                f'<button class="act-btn" style="padding:4px 8px;font-size:11px" onclick="openEdit(\'{di}\',\'{dor or ""}\',\'{en or ""}\',\'{sh or ""}\',\'{sq or ""}\',\'{me or ""}\',\'{st or ""}\',\'{sr or ""}\',\'{al}\',\'{ci or ""}\',\'{so or ""}\',\'{rj_str}\')">\u270f</button>'
                 f'<button class="act-btn del" style="padding:4px 8px;font-size:11px" onclick="delDay(\'{di}\')">\xd7</button>'
                 f'</div></div>'
             )
         body += '</div>'
 
-    return _render(body)
+    # ---- HTML dos remédios no modal de edição ----
+    remed_modal_html = ""
+    for rp in remedios_padrao:
+        nome = rp["nome"]
+        dp = float(rp["dose_padrao"] or 1)
+        step = "0.5" if rp["tipo"] == "quantidade" else "1"
+        remed_modal_html += (
+            f'<div style="display:flex;align-items:center;justify-content:space-between;'
+            f'background:var(--surface2);border-radius:10px;padding:8px 12px">'
+            f'<span style="font-size:13px;font-weight:600;color:var(--text)">{nome}</span>'
+            f'<div style="display:flex;align-items:center;gap:8px">'
+            f'<span style="font-size:11px;color:var(--text3)">qtd</span>'
+            f'<input class="ed-rem-qtd" data-nome="{nome}" type="number" min="0" max="20" step="{step}" value="{dp:g}"'
+            f' style="width:60px;background:var(--surface);border:1px solid var(--border);border-radius:8px;'
+            f'padding:6px 8px;color:var(--text);font-size:14px;font-weight:700;text-align:center;outline:none">'
+            f'</div></div>'
+        )
+
+    return _render(body, remed_modal_html)
 
 
 # ---------------------------------------------------------------------------
@@ -962,9 +1008,15 @@ async def dashboard_editar(
     alcool: str = Form(default=""),
     cigarros: str = Form(default=""),
     desempenho_social: str = Form(default=""),
+    remedios_tomados: str = Form(default=""),
 ):
     def _int(v): return int(v) if str(v).strip() else None
     def _float(v): return float(v) if str(v).strip() else None
+
+    try:
+        remed_json = _json.dumps(_json.loads(remedios_tomados), ensure_ascii=False) if remedios_tomados.strip() else None
+    except Exception:
+        remed_json = None
 
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -973,13 +1025,15 @@ async def dashboard_editar(
             UPDATE checkins SET
               dor_fisica=$2, energia=$3, sono_horas=$4, sono_qualidade=$5,
               saude_mental=$6, stress_trabalho=$7, stress_relacionamento=$8,
-              alcool=$9, cigarros=$10, desempenho_social=$11
+              alcool=$9, cigarros=$10, desempenho_social=$11,
+              remedios_tomados=COALESCE($12::jsonb, remedios_tomados)
             WHERE user_id=1 AND data=$1
             """,
             date.fromisoformat(data),
             _int(dor_fisica), _int(energia), _float(sono_horas), _int(sono_qualidade),
             _int(saude_mental), _int(stress_trabalho), _int(stress_relacionamento),
             alcool.strip() or None, _int(cigarros), _int(desempenho_social),
+            remed_json,
         )
     return RedirectResponse("/dashboard", status_code=303)
 
