@@ -628,25 +628,20 @@ async def dashboard_get():
     # ---- Hero card ----
     checkin_hoje = rows[0] if rows and rows[0]["data"] == hoje else None
     ultimo = rows[0] if rows else None
-    mental_hoje = checkin_hoje["saude_mental"] if checkin_hoje else None
-    energia_hoje = checkin_hoje["energia"] if checkin_hoje else None
-    dor_hoje = checkin_hoje["dor_fisica"] if checkin_hoje else None
-    sono_hoje = checkin_hoje["sono_horas"] if checkin_hoje else None
-    ex_hoje = checkin_hoje["exercicio"] if checkin_hoje else None
-    # Se não tem check-in hoje, usa o último disponível para contexto
-    if mental_hoje is None and ultimo:
-        mental_hoje = ultimo["saude_mental"]
-        energia_hoje = ultimo["energia"]
-        dor_hoje = ultimo["dor_fisica"]
-        sono_hoje = ultimo["sono_horas"]
-        ex_hoje = ultimo["exercicio"]
+    # Para o hero, usar o registro mais recente com saúde_mental preenchido
+    ref = next((r for r in rows if r["saude_mental"] is not None), None)
+    mental_hoje = ref["saude_mental"] if ref else None
+    energia_hoje = ref["energia"] if ref else None
+    dor_hoje = ref["dor_fisica"] if ref else None
+    sono_hoje = ref["sono_horas"] if ref else None
+    ex_hoje = ref["exercicio"] if ref else None
     frase = _hero_frase(mental_hoje, energia_hoje, dor_hoje)
     score_color = _score_color(mental_hoje) if mental_hoje is not None else "#4A4A5A"
     score_display = mental_hoje if mental_hoje is not None else "\u2014"
     try:
-        data_display = ultimo["data"].strftime("%-d de %B") if ultimo else "sem dados"
+        data_display = ref["data"].strftime("%-d de %B") if ref else "sem dados"
     except ValueError:
-        data_display = ultimo["data"].strftime("%d de %B") if ultimo else "sem dados"
+        data_display = ref["data"].strftime("%d de %B") if ref else "sem dados"
 
     checkin_status = (
         '<span style="background:#14532d;color:#86EFAC;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600">\u2713 check-in feito</span>'
@@ -875,16 +870,20 @@ async def dashboard_get():
         body += '</div>'
 
         # ---- Relato pontual (baixa hierarquia) ----
-        nota_hoje = checkin_hoje["nota_raw"] if checkin_hoje and checkin_hoje["nota_raw"] else ""
-        nota_resumo = ""
-        if checkin_hoje and checkin_hoje["nota_sentimento"]:
-            nota_resumo = f'<div style="margin-top:10px;font-size:12px;color:var(--text2)">{_sent_badge(checkin_hoje["nota_sentimento"])} {checkin_hoje["nota_raw"] or ""}</div>'
+        nota_raw_hoje = checkin_hoje["nota_raw"] if checkin_hoje and checkin_hoje["nota_raw"] else ""
+        nota_sent = checkin_hoje["nota_sentimento"] if checkin_hoje else ""
+        nota_salva_html = ""
+        if nota_raw_hoje:
+            badge = _sent_badge(nota_sent) + " " if nota_sent else ""
+            nota_salva_html = (
+                f'<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);'
+                f'font-size:13px;color:var(--text2);line-height:1.6">{badge}{nota_raw_hoje}</div>'
+            )
         body += f"""
 <div class="sec-label" style="padding-top:8px">Relato</div>
 <div class="relato-wrap">
   <div class="relato-card">
     <div class="relato-prompt" style="font-size:13px;color:var(--text2);font-weight:400">Algo pontual a registrar? Gatilhos, momentos, observa\xe7\xf5es.</div>
-    {nota_resumo}
     <div id="relato-actions" class="relato-actions" style="margin-top:12px">
       <button class="relato-btn" onclick="relatoTexto()">\u270f\ufe0f Texto</button>
       <button class="relato-btn relato-btn-audio" onclick="relatoAudio()">\U0001f3a4 \xc1udio</button>
@@ -900,6 +899,7 @@ async def dashboard_get():
         <button class="relato-btn" id="btn-send-audio" style="display:none" onclick="enviarAudio()">Enviar</button>
       </div>
     </div>
+    {nota_salva_html}
   </div>
 </div>"""
 
