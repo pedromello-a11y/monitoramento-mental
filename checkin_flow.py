@@ -2,16 +2,17 @@
 # ordem e ativo espelham o seed de campos_config.
 # label, tipo_input, opcoes_json e obrigatorio são metadados de UX
 # não armazenados no banco.
+# Emojis: usar apenas BMP (U+0000-U+FFFF) para compatibilidade com grupos WhatsApp.
 
 PERGUNTAS = [
     {
         "campo": "dor_fisica",
         "label": (
-            "🩺 *Dor física*\n\n"
+            "\u2764 *Dor f\xedsica*\n\n"
             "Quanto seu corpo doeu hoje?\n\n"
             "*0* = sem dor\n"
-            "*10* = dor intensa, difícil de funcionar\n\n"
-            "Escolha um número abaixo."
+            "*10* = dor intensa, dif\xedcil de funcionar\n\n"
+            "Escolha um n\xfamero abaixo."
         ),
         "tipo_input": "escala_0_10",
         "opcoes_json": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -22,11 +23,11 @@ PERGUNTAS = [
     {
         "campo": "energia",
         "label": (
-            "⚡ *Energia*\n\n"
+            "\u26a1 *Energia*\n\n"
             "Como esteve sua energia hoje?\n\n"
             "*0* = sem energia, esgotado\n"
-            "*10* = energia no máximo\n\n"
-            "Escolha um número abaixo."
+            "*10* = energia no m\xe1ximo\n\n"
+            "Escolha um n\xfamero abaixo."
         ),
         "tipo_input": "escala_0_10",
         "opcoes_json": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -37,8 +38,8 @@ PERGUNTAS = [
     {
         "campo": "sono_horas",
         "label": (
-            "😴 *Sono — horas*\n\n"
-            "Quantas horas você dormiu?\n\n"
+            "\u2605 *Sono \u2014 horas*\n\n"
+            "Quantas horas voc\xea dormiu?\n\n"
             "Conte o total real, incluindo cochilos.\n"
             "Ex: 6, 7.5, 8\n\n"
             "Escolha ou digite o valor abaixo."
@@ -52,11 +53,11 @@ PERGUNTAS = [
     {
         "campo": "sono_qualidade",
         "label": (
-            "🌙 *Qualidade do sono*\n\n"
+            "\u263d *Qualidade do sono*\n\n"
             "Como foi a qualidade do seu sono?\n\n"
-            "*0* = acordou destruído, sem descanso\n"
+            "*0* = acordou destru\xeddo, sem descanso\n"
             "*10* = dormiu muito bem, acordou renovado\n\n"
-            "Escolha um número abaixo."
+            "Escolha um n\xfamero abaixo."
         ),
         "tipo_input": "escala_0_10",
         "opcoes_json": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -67,12 +68,12 @@ PERGUNTAS = [
     {
         "campo": "exercicio",
         "label": (
-            "🏃 *Exercício*\n\n"
-            "Você se exercitou hoje?\n\n"
-            "Corrida · Caminhada · Natação · Nenhum"
+            "\u25b6 *Exerc\xedcio*\n\n"
+            "Voc\xea se exercitou hoje?\n\n"
+            "Corrida \xb7 Caminhada \xb7 Nata\xe7\xe3o \xb7 Nenhum"
         ),
         "tipo_input": "opcoes",
-        "opcoes_json": ["Corrida", "Caminhada", "Natação", "Nenhum"],
+        "opcoes_json": ["Corrida", "Caminhada", "Nata\xe7\xe3o", "Nenhum"],
         "obrigatorio": False,
         "ordem": 5,
         "ativo": False,
@@ -80,12 +81,12 @@ PERGUNTAS = [
     {
         "campo": "saude_mental",
         "label": (
-            "🧠 *Saúde mental*\n\n"
+            "\u2728 *Sa\xfade mental*\n\n"
             "Como sua mente esteve hoje no geral?\n\n"
             "Considere ansiedade, clareza, estabilidade e bem-estar.\n\n"
             "*0* = muito mal, funcionamento comprometido\n"
-            "*10* = muito bem, mente clara e estável\n\n"
-            "Escolha um número abaixo."
+            "*10* = muito bem, mente clara e est\xe1vel\n\n"
+            "Escolha um n\xfamero abaixo."
         ),
         "tipo_input": "escala_0_10",
         "opcoes_json": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -96,11 +97,11 @@ PERGUNTAS = [
     {
         "campo": "stress_trabalho",
         "label": (
-            "💼 *Stress no trabalho*\n\n"
+            "\u23f0 *Stress no trabalho*\n\n"
             "O quanto o trabalho pesou hoje?\n\n"
             "*0* = nenhum stress\n"
             "*10* = dia dominado pelo trabalho\n\n"
-            "Escolha um número abaixo."
+            "Escolha um n\xfamero abaixo."
         ),
         "tipo_input": "escala_0_10",
         "opcoes_json": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -111,11 +112,11 @@ PERGUNTAS = [
     {
         "campo": "stress_relacionamento",
         "label": (
-            "❤️ *Stress nos relacionamentos*\n\n"
-            "Teve tensão ou desgaste com alguém hoje?\n\n"
+            "\u2665 *Stress nos relacionamentos*\n\n"
+            "Teve tens\xe3o ou desgaste com algu\xe9m hoje?\n\n"
             "*0* = nenhum\n"
-            "*10* = conflito sério, ocupou muito espaço mental\n\n"
-            "Escolha um número abaixo."
+            "*10* = conflito s\xe9rio, ocupou muito espa\xe7o mental\n\n"
+            "Escolha um n\xfamero abaixo."
         ),
         "tipo_input": "escala_0_10",
         "opcoes_json": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -126,8 +127,8 @@ PERGUNTAS = [
     {
         "campo": "alcool",
         "label": (
-            "🍺 *Álcool*\n\n"
-            "Como foi seu consumo de álcool hoje?\n\n"
+            "\u2615 *\xc1lcool*\n\n"
+            "Como foi seu consumo de \xe1lcool hoje?\n\n"
             "*0* = Nenhum\n"
             "*1* = Pouco\n"
             "*2* = Moderado\n"
@@ -143,9 +144,9 @@ PERGUNTAS = [
     {
         "campo": "cigarros",
         "label": (
-            "🚬 *Cigarros*\n\n"
-            "Quantos cigarros você fumou hoje?\n\n"
-            "Digite ou escolha o número exato abaixo."
+            "\u2716 *Cigarros*\n\n"
+            "Quantos cigarros voc\xea fumou hoje?\n\n"
+            "Digite ou escolha o n\xfamero exato abaixo."
         ),
         "tipo_input": "numerico",
         "opcoes_json": [0, 1, 2, 3, 5, 8, 10],
@@ -156,11 +157,11 @@ PERGUNTAS = [
     {
         "campo": "desempenho_social",
         "label": (
-            "👥 *Vida social*\n\n"
-            "Como foi sua presença social hoje?\n\n"
+            "\u2600 *Vida social*\n\n"
+            "Como foi sua presen\xe7a social hoje?\n\n"
             "*0* = em casa o dia todo, sem contato\n"
-            "*10* = muita interação social\n\n"
-            "Escolha um número abaixo."
+            "*10* = muita intera\xe7\xe3o social\n\n"
+            "Escolha um n\xfamero abaixo."
         ),
         "tipo_input": "escala_0_10",
         "opcoes_json": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -170,7 +171,7 @@ PERGUNTAS = [
     },
     {
         "campo": "remedios",
-        "label": "💊 *Remédios*\n\nO que você tomou hoje?",
+        "label": "\u2665 *Rem\xe9dios*\n\nO que voc\xea tomou hoje?",
         "tipo_input": "remedios",
         "opcoes_json": [],
         "obrigatorio": False,
@@ -180,15 +181,15 @@ PERGUNTAS = [
     {
         "campo": "nota",
         "label": (
-            "📝 *Nota do dia*\n\n"
+            "\u270f *Nota do dia*\n\n"
             "Quer registrar algo sobre como foi seu dia?\n\n"
-            "🎤 *Áudio* — fala por até 1 minuto, transcrevo pra você\n"
-            "✏️ *Texto* — escreve à vontade\n"
-            "⏭️ *Pular* — sem nota hoje\n\n"
-            "Responda: Áudio, Texto ou Pular."
+            "* \xc1udio* \u2014 fala por at\xe9 1 minuto, transcrevo pra voc\xea\n"
+            "* Texto* \u2014 escreve \xe0 vontade\n"
+            "* Pular* \u2014 sem nota hoje\n\n"
+            "Responda: \xc1udio, Texto ou Pular."
         ),
         "tipo_input": "nota_livre",
-        "opcoes_json": ["Áudio", "Texto", "Pular"],
+        "opcoes_json": ["\xc1udio", "Texto", "Pular"],
         "obrigatorio": False,
         "ordem": 13,
         "ativo": True,
