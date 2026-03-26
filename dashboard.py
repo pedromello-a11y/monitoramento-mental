@@ -407,6 +407,9 @@ async def dashboard_get():
                 ORDER BY data ASC
                 """,
             )
+            remedios_padrao = await conn.fetch(
+                "SELECT id, nome, dose_padrao, tipo FROM remedios WHERE user_id = 1 AND ativo = TRUE ORDER BY id"
+            )
     except Exception as e:
         return _render(f'<div class="empty-state"><div class="es-icon">\u26a0</div><div class="es-title">Erro ao carregar</div><div class="es-sub">{e}</div></div>')
 
@@ -596,21 +599,33 @@ async def dashboard_get():
         body += '</div>'  # hist-wrap
 
         # ---- Remédios ----
-        remed_entries = [(r["data"].strftime("%d/%m"), r["remedios_tomados"]) for r in rows if r["remedios_tomados"]]
+        # Fallback: quando remedios_tomados é NULL (check-in via WhatsApp), usa doses padrão
+        _remed_padrao = [
+            {"nome": r["nome"], "qtd": float(r["dose_padrao"] or 1), "tomado": True}
+            for r in remedios_padrao
+        ]
+
+        def _pill(i):
+            qtd = f' \xd7{i["qtd"]}' if i.get("qtd") else ""
+            return f'<span class="pill"><span class="pill-dot"></span>{i["nome"]}{qtd}</span>'
+
         has_remed = False
         remed_html = ""
-        for data_str, rj in remed_entries:
+        for r in rows:
+            data_str = r["data"].strftime("%d/%m")
+            rj = r["remedios_tomados"]
             try:
-                itens = rj if isinstance(rj, list) else _json.loads(rj)
-                tomados = [i for i in itens if i.get("tomado")]
+                if rj:
+                    itens = rj if isinstance(rj, list) else _json.loads(rj)
+                    tomados = [i for i in itens if i.get("tomado")]
+                else:
+                    tomados = _remed_padrao
                 if not tomados:
                     continue
                 has_remed = True
-                def _pill(i):
-                    qtd = f' \xd7{i["qtd"]}' if i.get("qtd") else ""
-                    return f'<span class="pill"><span class="pill-dot"></span>{i["nome"]}{qtd}</span>'
                 pills = "".join(_pill(i) for i in tomados)
-                remed_html += f'<div class="remed-day"><div class="remed-day-date">{data_str}</div>{pills}</div>'
+                suffix = "" if rj else ' <span style="font-size:10px;color:var(--text3)">(padr\xe3o)</span>'
+                remed_html += f'<div class="remed-day"><div class="remed-day-date">{data_str}{suffix}</div>{pills}</div>'
             except Exception:
                 pass
         if has_remed:
