@@ -944,17 +944,28 @@ async def dashboard_get():
 async def dashboard_relato(texto: str = Form(...)):
     try:
         pool = get_pool()
-        analysis = await _process_nota_completa(texto)
-        sentimento = analysis.get("sentimento") or ""
-        categorias = _json.dumps(analysis.get("categorias") or [], ensure_ascii=False)
+        # Salva o texto imediatamente, sem depender da OpenAI
         async with pool.acquire() as conn:
             await conn.execute(
-                """INSERT INTO checkins (user_id, data, nota_raw, nota_sentimento, nota_categorias)
-                   VALUES (1, CURRENT_DATE, $1, $2, $3::jsonb)
-                   ON CONFLICT (user_id, data) DO UPDATE SET
-                   nota_raw=$1, nota_sentimento=$2, nota_categorias=$3::jsonb""",
-                texto, sentimento, categorias,
+                """INSERT INTO checkins (user_id, data, nota_raw)
+                   VALUES (1, CURRENT_DATE, $1)
+                   ON CONFLICT (user_id, data) DO UPDATE SET nota_raw=$1""",
+                texto,
             )
+        # Tenta análise em background (não bloqueia, não quebra se falhar)
+        try:
+            analysis = await _process_nota_completa(texto)
+            if analysis:
+                sentimento = analysis.get("sentimento") or ""
+                categorias = _json.dumps(analysis.get("categorias") or [], ensure_ascii=False)
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "UPDATE checkins SET nota_sentimento=$1, nota_categorias=$2::jsonb "
+                        "WHERE user_id=1 AND data=CURRENT_DATE",
+                        sentimento, categorias,
+                    )
+        except Exception:
+            pass
         return JSONResponse({"ok": True})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
