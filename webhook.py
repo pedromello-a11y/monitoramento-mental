@@ -32,7 +32,6 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
         from_me = candidate.get("from_me", False)
         is_allowed_group = ALLOWED_GROUP_ID and chat_id == ALLOWED_GROUP_ID
         is_self_chat = from_me and chat_id == f"{MY_WHATSAPP}@s.whatsapp.net"
-        print(f"MSG chat_id={chat_id!r} from_me={from_me} source={candidate.get('source')} is_allowed_group={is_allowed_group} is_self_chat={is_self_chat}", flush=True)
         if candidate.get("source") != "api" and (is_allowed_group or is_self_chat):
             msg = candidate
     elif body.get("chats_updates") and ALLOWED_GROUP_ID:
@@ -261,7 +260,8 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
         valor = _parse_value(content, pergunta)
         if valor is not None and pergunta["tipo_input"] == "numerico":
             try:
-                float(str(valor).strip())
+                v = float(str(valor).strip())
+                valor = int(v) if v == int(v) else v
             except (ValueError, TypeError):
                 valor = None
         elif valor is not None and pergunta["tipo_input"] == "opcoes":
