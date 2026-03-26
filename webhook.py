@@ -28,7 +28,11 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     # Suporte a chats_updates (self-messages e grupos via Whapi)
     msg = None
     if body.get("messages"):
-        msg = body["messages"][0]
+        candidate = body["messages"][0]
+        # Ignorar mensagens enviadas pela API (respostas do bot)
+        if candidate.get("source") == "api":
+            return {"status": "ignored"}
+        msg = candidate
     elif body.get("chats_updates"):
         last = (body["chats_updates"][0].get("after_update") or {}).get("last_message")
         if last and last.get("from_me") and last.get("source") != "api":
