@@ -408,7 +408,7 @@ async def dashboard_get():
                 """,
             )
             remedios_padrao = await conn.fetch(
-                "SELECT id, nome, dose_padrao, tipo FROM remedios WHERE user_id = 1 AND ativo = TRUE ORDER BY id"
+                "SELECT DISTINCT ON (nome) id, nome, dose_padrao, tipo FROM remedios WHERE user_id = 1 AND ativo = TRUE ORDER BY nome, id"
             )
     except Exception as e:
         return _render(f'<div class="empty-state"><div class="es-icon">\u26a0</div><div class="es-title">Erro ao carregar</div><div class="es-sub">{e}</div></div>')
