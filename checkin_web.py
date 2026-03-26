@@ -18,6 +18,8 @@ _STEPS = [
     {"f": "alcool",                "q": "\U0001F37A \xC1lcool hoje",                  "h": "",                                            "t": "chips",   "d": "Nenhum",
      "o": ["Nenhum", "Pouco", "Moderado", "Muito"]},
     {"f": "cigarros",              "q": "\U0001F6AC Cigarros hoje",                   "h": "N\xFAmero de cigarros",                       "t": "cig",     "d": 2},
+    {"f": "exercicio",             "q": "\u25B6 Exerc\xEDcio hoje",                   "h": "",                                            "t": "chips",   "d": "Nenhum",
+     "o": ["Nenhum", "Leve", "Moderado", "Intenso"]},
     {"f": "desempenho_social",     "q": "\U0001F465 Desempenho social",               "h": "0 = em casa o dia todo \xB7 10 = muito ativo", "t": "scale",   "d": 5},
     {"f": "remedios_tomados",      "q": "\U0001F48A Rem\xE9dios de hoje",             "h": "Marque o que tomou",                          "t": "remedios", "d": []},
 ]
@@ -410,6 +412,7 @@ async def checkin_web_post(
     stress_trabalho: int = Form(...),
     stress_relacionamento: int = Form(...),
     alcool: str = Form(...),
+    exercicio: str = Form(default="Nenhum"),
     cigarros: int = Form(...),
     desempenho_social: int = Form(...),
     remedios_tomados: str = Form(default="[]"),
@@ -438,17 +441,17 @@ async def checkin_web_post(
                 INSERT INTO checkins
                   (user_id, data, dor_fisica, energia, sono_horas, sono_qualidade,
                    saude_mental, stress_trabalho, stress_relacionamento, alcool,
-                   cigarros, desempenho_social, remedios_tomados)
-                VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)
+                   exercicio, cigarros, desempenho_social, remedios_tomados)
+                VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
                 ON CONFLICT (user_id, data) DO UPDATE SET
                   dor_fisica = $2, energia = $3, sono_horas = $4, sono_qualidade = $5,
                   saude_mental = $6, stress_trabalho = $7, stress_relacionamento = $8,
-                  alcool = $9, cigarros = $10, desempenho_social = $11,
-                  remedios_tomados = $12::jsonb
+                  alcool = $9, exercicio = $10, cigarros = $11, desempenho_social = $12,
+                  remedios_tomados = $13::jsonb
                 """,
                 user_id, dor_fisica, energia, sono_horas, sono_qualidade,
                 saude_mental, stress_trabalho, stress_relacionamento, alcool,
-                cigarros, desempenho_social, remed_json,
+                exercicio, cigarros, desempenho_social, remed_json,
             )
     except Exception as e:
         err_inner = (

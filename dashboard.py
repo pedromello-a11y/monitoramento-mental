@@ -381,7 +381,7 @@ async def dashboard_get():
                 """
                 SELECT data, dor_fisica, energia, sono_horas, sono_qualidade,
                        saude_mental, stress_trabalho, stress_relacionamento,
-                       alcool, cigarros, desempenho_social,
+                       alcool, exercicio, cigarros, desempenho_social,
                        nota_raw, nota_sentimento, nota_categorias, remedios_tomados
                 FROM checkins WHERE user_id = 1
                 ORDER BY data DESC LIMIT 7
@@ -517,6 +517,7 @@ async def dashboard_get():
     <div class="dim-title">\u2764 F\xedsico &amp; Social</div>
     {_dim_row("Dor f\xedsica", m["dor"] if m else None, invert=True)}
     {_dim_row("Desempenho social", m["social"] if m else None)}
+    {(lambda ex_vals: f'<div class="dim-row"><span class="dim-lbl">\u25b6 Exerc\xedcio</span><span style="font-size:13px;font-weight:600;color:var(--text)">{max(set(ex_vals), key=ex_vals.count)}</span></div>' if ex_vals else "")([r["exercicio"] for r in rows if r["exercicio"]])}
   </div>
   <div class="dim-card">
     <div class="dim-title">\u2615 H\xe1bitos</div>
@@ -533,7 +534,7 @@ async def dashboard_get():
         body += '<table class="hist-table"><thead><tr>'
         body += '<th>Data</th><th>\u2728 Mental</th><th>\u26a1 Energia</th><th>\u2764 Dor</th>'
         body += '<th>\u2605 Sono</th><th>\u23f0 Stress T</th><th>\u2665 Stress R</th>'
-        body += '<th>\u2615 \xc1lcool</th><th>\u2716 Cig.</th><th></th>'
+        body += '<th>\u2615 \xc1lcool</th><th>\u25b6 Exerc.</th><th>\u2716 Cig.</th><th></th>'
         body += '</tr></thead><tbody>'
 
         for r in rows:
@@ -542,7 +543,7 @@ async def dashboard_get():
             dor = r["dor_fisica"]; en = r["energia"]; sh = r["sono_horas"]
             sq = r["sono_qualidade"]; me = r["saude_mental"]
             st = r["stress_trabalho"]; sr = r["stress_relacionamento"]
-            al = r["alcool"] or ""; ci = r["cigarros"]; so = r["desempenho_social"]
+            al = r["alcool"] or ""; ex = r["exercicio"] or ""; ci = r["cigarros"]; so = r["desempenho_social"]
             body += (
                 f'<tr>'
                 f'<td><b>{ds}</b></td>'
@@ -553,6 +554,7 @@ async def dashboard_get():
                 f'<td>{_badge(st, invert=True)}</td>'
                 f'<td>{_badge(sr, invert=True)}</td>'
                 f'<td><span style="font-size:13px;color:var(--text2)">{al or "\u2014"}</span></td>'
+                f'<td><span style="font-size:13px;color:var(--text2)">{ex or "\u2014"}</span></td>'
                 f'<td><span style="font-weight:600">{ci if ci is not None else "\u2014"}</span></td>'
                 f'<td style="white-space:nowrap">'
                 f'<button class="act-btn" onclick="openEdit(\'{di}\',\'{dor or ""}\',\'{en or ""}\',\'{sh or ""}\',\'{sq or ""}\',\'{me or ""}\',\'{st or ""}\',\'{sr or ""}\',\'{al}\',\'{ci or ""}\',\'{so or ""}\')">\u270f</button> '
@@ -570,7 +572,7 @@ async def dashboard_get():
             dor = r["dor_fisica"]; en = r["energia"]; sh = r["sono_horas"]
             sq = r["sono_qualidade"]; me = r["saude_mental"]
             st = r["stress_trabalho"]; sr = r["stress_relacionamento"]
-            al = r["alcool"] or ""; ci = r["cigarros"]; so = r["desempenho_social"]
+            al = r["alcool"] or ""; ex = r["exercicio"] or ""; ci = r["cigarros"]; so = r["desempenho_social"]
             me_c = _score_color(me) if me is not None else "#4A4A5A"
             body += f"""
 <div class="day-card">
@@ -587,7 +589,7 @@ async def dashboard_get():
     <div class="day-metric"><div class="dm-val" style="color:#A78BFA">{sh if sh is not None else '\u2014'}h</div><div class="dm-lbl">\u2605 Sono</div></div>
     <div class="day-metric"><div class="dm-val">{ci if ci is not None else '\u2014'}</div><div class="dm-lbl">\u2716 Cig.</div></div>
     <div class="day-metric"><div class="dm-val">{al or '\u2014'}</div><div class="dm-lbl">\u2615 \xc1lcool</div></div>
-    <div class="day-metric"><div class="dm-val">{st if st is not None else '\u2014'}</div><div class="dm-lbl">\u23f0 Stress T</div></div>
+    <div class="day-metric"><div class="dm-val">{ex or '\u2014'}</div><div class="dm-lbl">\u25b6 Exerc\xedcio</div></div>
   </div>
 </div>"""
         body += '</div>'  # day-cards

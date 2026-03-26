@@ -70,13 +70,17 @@ PERGUNTAS = [
         "label": (
             "\u25b6 *Exerc\xedcio*\n\n"
             "Voc\xea se exercitou hoje?\n\n"
-            "Corrida \xb7 Caminhada \xb7 Nata\xe7\xe3o \xb7 Nenhum"
+            "*0* = Nenhum\n"
+            "*1* = Leve (caminhada, alongamento)\n"
+            "*2* = Moderado (corrida, academia)\n"
+            "*3* = Intenso (treino pesado, competi\xe7\xe3o)"
         ),
         "tipo_input": "opcoes",
-        "opcoes_json": ["Corrida", "Caminhada", "Nata\xe7\xe3o", "Nenhum"],
+        "opcoes_json": ["Nenhum", "Leve", "Moderado", "Intenso"],
+        "mapa_numerico": {"0": "Nenhum", "1": "Leve", "2": "Moderado", "3": "Intenso"},
         "obrigatorio": False,
         "ordem": 5,
-        "ativo": False,
+        "ativo": True,
     },
     {
         "campo": "saude_mental",
