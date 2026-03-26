@@ -187,6 +187,23 @@ async def cron_streak(x_cron_secret: str | None = Header(default=None)):
             "skipped_completed": skipped_completed, "skipped_already_sent": skipped_already_sent}
 
 
+@router.post("/internal/migrate/remedios-doses")
+async def migrate_remedios_doses(x_cron_secret: str | None = Header(default=None)):
+    _check_secret(x_cron_secret)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE remedios SET dose_padrao = 3 WHERE nome ILIKE 'Zolpidem%' AND user_id = 1"
+        )
+        await conn.execute(
+            "UPDATE remedios SET dose = '0,5mg' WHERE nome ILIKE 'Rivotril%' AND user_id = 1"
+        )
+        rows = await conn.fetch(
+            "SELECT nome, dose, dose_padrao FROM remedios WHERE user_id = 1 AND ativo = TRUE ORDER BY id"
+        )
+    return {"status": "ok", "remedios": [dict(r) for r in rows]}
+
+
 @router.post("/internal/cron/cleanup-sessoes")
 async def cron_cleanup(x_cron_secret: str | None = Header(default=None)):
     _check_secret(x_cron_secret)
