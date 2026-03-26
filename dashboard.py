@@ -453,9 +453,10 @@ function enviarRelato(){
   var fd=new FormData();
   fd.append('texto',texto);
   fetch('/dashboard/relato',{method:'POST',body:fd})
-    .then(function(r){
-      if(r.ok||r.redirected){location.reload();}
-      else{btn.textContent='Erro — tente novamente';btn.disabled=false;}
+    .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
+    .then(function(res){
+      if(res.ok&&res.j.ok){location.reload();}
+      else{btn.textContent='Erro: '+(res.j.error||'tente novamente');btn.disabled=false;}
     })
     .catch(function(){btn.textContent='Erro de conex\xe3o';btn.disabled=false;});
 }
@@ -941,19 +942,22 @@ async def dashboard_get():
 
 @router.post("/dashboard/relato")
 async def dashboard_relato(texto: str = Form(...)):
-    pool = get_pool()
-    analysis = await _process_nota_completa(texto)
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """INSERT INTO checkins (user_id, data, nota_raw, nota_sentimento, nota_categorias)
-               VALUES (1, CURRENT_DATE, $1, $2, $3::jsonb)
-               ON CONFLICT (user_id, data) DO UPDATE SET
-               nota_raw=$1, nota_sentimento=$2, nota_categorias=$3::jsonb""",
-            texto,
-            analysis.get("sentimento", ""),
-            _json.dumps(analysis.get("categorias", []), ensure_ascii=False),
-        )
-    return JSONResponse({"ok": True})
+    try:
+        pool = get_pool()
+        analysis = await _process_nota_completa(texto)
+        sentimento = analysis.get("sentimento") or ""
+        categorias = _json.dumps(analysis.get("categorias") or [], ensure_ascii=False)
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO checkins (user_id, data, nota_raw, nota_sentimento, nota_categorias)
+                   VALUES (1, CURRENT_DATE, $1, $2, $3::jsonb)
+                   ON CONFLICT (user_id, data) DO UPDATE SET
+                   nota_raw=$1, nota_sentimento=$2, nota_categorias=$3::jsonb""",
+                texto, sentimento, categorias,
+            )
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 # ---------------------------------------------------------------------------
