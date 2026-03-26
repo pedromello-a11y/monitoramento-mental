@@ -25,7 +25,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
 
     body = await request.json()
     msg = (body.get("messages") or [{}])[0]
-    sender = msg.get("from", "")
+    sender = msg.get("from") or msg.get("chat_id", "").split("@")[0]
 
     if sender != MY_WHATSAPP and not msg.get("from_me", False):
         return {"status": "ignored"}
