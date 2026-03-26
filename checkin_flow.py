@@ -6,7 +6,13 @@
 PERGUNTAS = [
     {
         "campo": "dor_fisica",
-        "label": "Dor física",
+        "label": (
+            "🩺 *Dor física*\n\n"
+            "Quanto seu corpo doeu hoje?\n\n"
+            "*0* = sem dor\n"
+            "*10* = dor intensa, difícil de funcionar\n\n"
+            "Escolha um número abaixo."
+        ),
         "tipo_input": "escala_0_10",
         "opcoes_json": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
         "obrigatorio": True,
@@ -15,7 +21,13 @@ PERGUNTAS = [
     },
     {
         "campo": "energia",
-        "label": "Energia",
+        "label": (
+            "⚡ *Energia*\n\n"
+            "Como esteve sua energia hoje?\n\n"
+            "*0* = sem energia, esgotado\n"
+            "*10* = energia no máximo\n\n"
+            "Escolha um número abaixo."
+        ),
         "tipo_input": "escala_0_10",
         "opcoes_json": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
         "obrigatorio": True,
@@ -24,7 +36,13 @@ PERGUNTAS = [
     },
     {
         "campo": "sono_horas",
-        "label": "Sono — horas",
+        "label": (
+            "😴 *Sono — horas*\n\n"
+            "Quantas horas você dormiu?\n\n"
+            "Conte o total real, incluindo cochilos.\n"
+            "Ex: 6, 7.5, 8\n\n"
+            "Escolha ou digite o valor abaixo."
+        ),
         "tipo_input": "numerico",
         "opcoes_json": [4, 5, 6, 7, 8, 9, 10],
         "obrigatorio": True,
@@ -33,7 +51,13 @@ PERGUNTAS = [
     },
     {
         "campo": "sono_qualidade",
-        "label": "Sono — qualidade",
+        "label": (
+            "🌙 *Qualidade do sono*\n\n"
+            "Como foi a qualidade do seu sono?\n\n"
+            "*0* = acordou destruído, sem descanso\n"
+            "*10* = dormiu muito bem, acordou renovado\n\n"
+            "Escolha um número abaixo."
+        ),
         "tipo_input": "escala_0_10",
         "opcoes_json": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
         "obrigatorio": True,
@@ -42,7 +66,11 @@ PERGUNTAS = [
     },
     {
         "campo": "exercicio",
-        "label": "Exercício",
+        "label": (
+            "🏃 *Exercício*\n\n"
+            "Você se exercitou hoje?\n\n"
+            "Escolha uma opção abaixo."
+        ),
         "tipo_input": "opcoes",
         "opcoes_json": ["Corrida", "Caminhada", "Natação", "Nenhum"],
         "obrigatorio": False,
@@ -51,7 +79,14 @@ PERGUNTAS = [
     },
     {
         "campo": "saude_mental",
-        "label": "Saúde mental",
+        "label": (
+            "🧠 *Saúde mental*\n\n"
+            "Como sua mente esteve hoje no geral?\n\n"
+            "Considere ansiedade, clareza, estabilidade e bem-estar.\n\n"
+            "*0* = muito mal, funcionamento comprometido\n"
+            "*10* = muito bem, mente clara e estável\n\n"
+            "Escolha um número abaixo."
+        ),
         "tipo_input": "escala_0_10",
         "opcoes_json": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
         "obrigatorio": True,
@@ -60,7 +95,13 @@ PERGUNTAS = [
     },
     {
         "campo": "stress_trabalho",
-        "label": "Stress trabalho",
+        "label": (
+            "💼 *Stress no trabalho*\n\n"
+            "O quanto o trabalho pesou hoje?\n\n"
+            "*0* = nenhum stress\n"
+            "*10* = dia dominado pelo trabalho\n\n"
+            "Escolha um número abaixo."
+        ),
         "tipo_input": "escala_0_10",
         "opcoes_json": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
         "obrigatorio": True,
@@ -69,7 +110,13 @@ PERGUNTAS = [
     },
     {
         "campo": "stress_relacionamento",
-        "label": "Stress relacionamento",
+        "label": (
+            "❤️ *Stress nos relacionamentos*\n\n"
+            "Teve tensão ou desgaste com alguém hoje?\n\n"
+            "*0* = nenhum\n"
+            "*10* = conflito sério, ocupou muito espaço mental\n\n"
+            "Escolha um número abaixo."
+        ),
         "tipo_input": "escala_0_10",
         "opcoes_json": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
         "obrigatorio": True,
@@ -78,7 +125,11 @@ PERGUNTAS = [
     },
     {
         "campo": "alcool",
-        "label": "Álcool",
+        "label": (
+            "🍺 *Álcool*\n\n"
+            "Como foi seu consumo de álcool hoje?\n\n"
+            "Escolha uma opção abaixo."
+        ),
         "tipo_input": "opcoes",
         "opcoes_json": ["Nenhum", "Pouco", "Moderado", "Muito"],
         "obrigatorio": True,
@@ -87,7 +138,11 @@ PERGUNTAS = [
     },
     {
         "campo": "cigarros",
-        "label": "Cigarros",
+        "label": (
+            "🚬 *Cigarros*\n\n"
+            "Quantos cigarros você fumou hoje?\n\n"
+            "Digite ou escolha o número exato abaixo."
+        ),
         "tipo_input": "numerico",
         "opcoes_json": [0, 1, 2, 3, 5, 8, 10],
         "obrigatorio": True,
@@ -96,7 +151,13 @@ PERGUNTAS = [
     },
     {
         "campo": "desempenho_social",
-        "label": "Desempenho social",
+        "label": (
+            "👥 *Vida social*\n\n"
+            "Como foi sua presença social hoje?\n\n"
+            "*0* = em casa o dia todo, sem contato\n"
+            "*10* = muita interação social\n\n"
+            "Escolha um número abaixo."
+        ),
         "tipo_input": "escala_0_10",
         "opcoes_json": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
         "obrigatorio": True,
@@ -105,7 +166,7 @@ PERGUNTAS = [
     },
     {
         "campo": "remedios",
-        "label": "Remédios",
+        "label": "💊 *Remédios*\n\nO que você tomou hoje?",
         "tipo_input": "remedios",
         "opcoes_json": [],
         "obrigatorio": False,
@@ -114,7 +175,14 @@ PERGUNTAS = [
     },
     {
         "campo": "nota",
-        "label": "Nota do dia",
+        "label": (
+            "📝 *Nota do dia*\n\n"
+            "Quer registrar algo sobre como foi seu dia?\n\n"
+            "🎤 *Áudio* — fala por até 1 minuto, transcrevo pra você\n"
+            "✏️ *Texto* — escreve à vontade\n"
+            "⏭️ *Pular* — sem nota hoje\n\n"
+            "Escolha uma opção abaixo."
+        ),
         "tipo_input": "nota_livre",
         "opcoes_json": ["Áudio", "Texto", "Pular"],
         "obrigatorio": False,
