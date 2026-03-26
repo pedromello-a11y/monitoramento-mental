@@ -20,11 +20,14 @@ def _parse_value(content: str, pergunta: dict):
 
 @router.post("/webhook")
 async def webhook(request: Request, background_tasks: BackgroundTasks):
+    if not MY_WHATSAPP:
+        return {"status": "ignored"}
+
     body = await request.json()
     msg = (body.get("messages") or [{}])[0]
     sender = msg.get("from", "")
 
-    if not MY_WHATSAPP or sender != MY_WHATSAPP:
+    if sender != MY_WHATSAPP and not msg.get("from_me", False):
         return {"status": "ignored"}
 
     msg_type = msg.get("type", "outro")
