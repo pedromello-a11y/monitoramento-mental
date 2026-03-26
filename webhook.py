@@ -24,10 +24,21 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
         return {"status": "ignored"}
 
     body = await request.json()
-    msg = (body.get("messages") or [{}])[0]
+
+    # Suporte a chats_updates (self-messages e grupos via Whapi)
+    msg = None
+    if body.get("messages"):
+        msg = body["messages"][0]
+    elif body.get("chats_updates"):
+        last = (body["chats_updates"][0].get("after_update") or {}).get("last_message")
+        if last and last.get("from_me"):
+            msg = last
+    if not msg:
+        return {"status": "ignored"}
+
     sender = msg.get("from") or msg.get("chat_id", "").split("@")[0]
 
-    if sender != MY_WHATSAPP and not msg.get("from_me", False):
+    if sender != MY_WHATSAPP:
         return {"status": "ignored"}
 
     msg_type = msg.get("type", "outro")
