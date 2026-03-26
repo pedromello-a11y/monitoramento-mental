@@ -211,14 +211,18 @@ a{color:var(--primary);text-decoration:none}
 
 /* Remédios */
 .remed-card{margin:0 24px;background:var(--surface);border-radius:16px;
-  padding:20px;border:1px solid var(--border)}
-.remed-day{margin-bottom:14px}
-.remed-day:last-child{margin-bottom:0}
-.remed-day-date{font-size:11px;color:var(--text2);margin-bottom:8px;font-weight:600}
-.pill{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);
-  border:1px solid var(--border);border-radius:20px;padding:5px 12px;
-  font-size:12px;font-weight:600;margin:3px 3px 3px 0}
-.pill-dot{width:7px;height:7px;border-radius:50%;background:var(--primary);flex-shrink:0}
+  padding:0;border:1px solid var(--border);overflow:hidden}
+.remed-day{border-bottom:1px solid var(--border);padding:14px 18px}
+.remed-day:last-child{border-bottom:none}
+.remed-day-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.remed-day-date{font-size:12px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.remed-tag{font-size:10px;color:var(--text3);font-weight:500}
+.remed-list{display:flex;flex-direction:column;gap:6px}
+.remed-item{display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface2);border-radius:10px;padding:8px 12px}
+.remed-nome{font-size:13px;font-weight:600;color:var(--text)}
+.remed-qtd{font-size:13px;font-weight:700;color:var(--primary);background:rgba(167,139,250,.12);
+  border-radius:8px;padding:2px 8px;min-width:28px;text-align:center}
 
 /* Notas */
 .notes-wrap{margin:0 24px;display:flex;flex-direction:column;gap:12px}
@@ -605,9 +609,15 @@ async def dashboard_get():
             for r in remedios_padrao
         ]
 
-        def _pill(i):
-            qtd = f' \xd7{i["qtd"]}' if i.get("qtd") else ""
-            return f'<span class="pill"><span class="pill-dot"></span>{i["nome"]}{qtd}</span>'
+        def _remed_item(i):
+            qtd = i.get("qtd")
+            qtd_str = f'{qtd:g}' if qtd is not None else "1"
+            return (
+                f'<div class="remed-item">'
+                f'<span class="remed-nome">{i["nome"]}</span>'
+                f'<span class="remed-qtd">\xd7{qtd_str}</span>'
+                f'</div>'
+            )
 
         has_remed = False
         remed_html = ""
@@ -618,14 +628,20 @@ async def dashboard_get():
                 if rj:
                     itens = rj if isinstance(rj, list) else _json.loads(rj)
                     tomados = [i for i in itens if i.get("tomado")]
+                    tag = ""
                 else:
                     tomados = _remed_padrao
+                    tag = '<span class="remed-tag">dose padr\xe3o</span>'
                 if not tomados:
                     continue
                 has_remed = True
-                pills = "".join(_pill(i) for i in tomados)
-                suffix = "" if rj else ' <span style="font-size:10px;color:var(--text3)">(padr\xe3o)</span>'
-                remed_html += f'<div class="remed-day"><div class="remed-day-date">{data_str}{suffix}</div>{pills}</div>'
+                items_html = "".join(_remed_item(i) for i in tomados)
+                remed_html += (
+                    f'<div class="remed-day">'
+                    f'<div class="remed-day-header"><span class="remed-day-date">{data_str}</span>{tag}</div>'
+                    f'<div class="remed-list">{items_html}</div>'
+                    f'</div>'
+                )
             except Exception:
                 pass
         if has_remed:

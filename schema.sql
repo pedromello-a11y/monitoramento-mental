@@ -147,8 +147,8 @@ ON CONFLICT DO NOTHING;
 
 -- Seed: remédios
 INSERT INTO remedios (user_id, nome, dose, dose_padrao, tipo) VALUES
-  (1, 'Zolpidem', '5mg', 1, 'quantidade'),
-  (1, 'Rivotril',  NULL, 1, 'quantidade'),
+  (1, 'Zolpidem', '5mg', 3, 'quantidade'),
+  (1, 'Rivotril', '0,5mg', 1, 'quantidade'),
   (1, 'Tramadol',  NULL, 1, 'binario')
 ON CONFLICT DO NOTHING;
 
