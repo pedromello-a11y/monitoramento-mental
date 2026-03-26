@@ -69,7 +69,7 @@ PERGUNTAS = [
         "label": (
             "🏃 *Exercício*\n\n"
             "Você se exercitou hoje?\n\n"
-            "Escolha uma opção abaixo."
+            "Corrida · Caminhada · Natação · Nenhum"
         ),
         "tipo_input": "opcoes",
         "opcoes_json": ["Corrida", "Caminhada", "Natação", "Nenhum"],
@@ -128,7 +128,7 @@ PERGUNTAS = [
         "label": (
             "🍺 *Álcool*\n\n"
             "Como foi seu consumo de álcool hoje?\n\n"
-            "Escolha uma opção abaixo."
+            "Nenhum · Pouco · Moderado · Muito"
         ),
         "tipo_input": "opcoes",
         "opcoes_json": ["Nenhum", "Pouco", "Moderado", "Muito"],
@@ -181,7 +181,7 @@ PERGUNTAS = [
             "🎤 *Áudio* — fala por até 1 minuto, transcrevo pra você\n"
             "✏️ *Texto* — escreve à vontade\n"
             "⏭️ *Pular* — sem nota hoje\n\n"
-            "Escolha uma opção abaixo."
+            "Responda: Áudio, Texto ou Pular."
         ),
         "tipo_input": "nota_livre",
         "opcoes_json": ["Áudio", "Texto", "Pular"],
