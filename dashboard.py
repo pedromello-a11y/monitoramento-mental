@@ -432,10 +432,16 @@ function toggleGravacao(){
 function enviarRelato(){
   var texto=document.getElementById('relato-input').value.trim();
   if(!texto)return;
+  var btn=document.querySelector('.relato-submit');
+  btn.textContent='Salvando...';btn.disabled=true;
   var fd=new FormData();
   fd.append('texto',texto);
   fetch('/dashboard/relato',{method:'POST',body:fd})
-    .then(function(){location.reload();});
+    .then(function(r){
+      if(r.ok||r.redirected){location.reload();}
+      else{btn.textContent='Erro — tente novamente';btn.disabled=false;}
+    })
+    .catch(function(){btn.textContent='Erro de conex\xe3o';btn.disabled=false;});
 }
 function enviarAudio(){
   var blob=new Blob(_chunks,{type:'audio/webm'});
@@ -444,7 +450,11 @@ function enviarAudio(){
   document.getElementById('audio-status').textContent='Enviando e transcrevendo...';
   document.getElementById('btn-send-audio').disabled=true;
   fetch('/dashboard/relato-audio',{method:'POST',body:fd})
-    .then(function(){location.reload();});
+    .then(function(r){
+      if(r.ok||r.redirected){location.reload();}
+      else{document.getElementById('audio-status').textContent='Erro ao transcrever. Tente novamente.';document.getElementById('btn-send-audio').disabled=false;}
+    })
+    .catch(function(){document.getElementById('audio-status').textContent='Erro de conex\xe3o.';document.getElementById('btn-send-audio').disabled=false;});
 }
 </script>
 <!-- Modal editar -->
@@ -897,7 +907,7 @@ async def dashboard_relato(texto: str = Form(...)):
             analysis.get("sentimento", ""),
             _json.dumps(analysis.get("categorias", []), ensure_ascii=False),
         )
-    return RedirectResponse("/dashboard", status_code=303)
+    return JSONResponse({"ok": True})
 
 
 # ---------------------------------------------------------------------------
@@ -932,7 +942,7 @@ async def dashboard_relato_audio(audio: UploadFile = File(...)):
             analysis.get("sentimento", ""),
             _json.dumps(analysis.get("categorias", []), ensure_ascii=False),
         )
-    return RedirectResponse("/dashboard", status_code=303)
+    return JSONResponse({"ok": True})
 
 
 # ---------------------------------------------------------------------------
