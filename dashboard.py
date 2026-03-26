@@ -1,8 +1,9 @@
 import json as _json
 from datetime import date
+import zoneinfo
 
-from fastapi import APIRouter, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Form, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 from config import OPENAI_API_KEY
 from database import get_pool
@@ -98,6 +99,31 @@ async def _process_nota(nota_raw: str) -> dict:
                     "sentimento (positivo/neutro/negativo), "
                     "categorias (lista de at\xe9 4 temas curtos em portugu\xeas). "
                     "Responda APENAS com JSON v\xe1lido."
+                )},
+                {"role": "user", "content": nota_raw},
+            ],
+            response_format={"type": "json_object"},
+        )
+        return _json.loads(resp.choices[0].message.content)
+    except Exception:
+        return {}
+
+async def _process_nota_completa(nota_raw: str) -> dict:
+    if not OPENAI_API_KEY or not nota_raw.strip():
+        return {}
+    try:
+        from openai import AsyncOpenAI
+        ai = AsyncOpenAI(api_key=OPENAI_API_KEY)
+        resp = await ai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": (
+                    "Você é um psicólogo analista de saúde mental. Analise o relato diário e retorne JSON com: "
+                    "resumo (frase curta, acolhedora, 1a pessoa, máx 90 chars), "
+                    "sentimento (positivo/neutro/negativo), "
+                    "categorias (lista de até 5 temas reutilizáveis em português, ex: ansiedade, sono, trabalho, relacionamento, humor, dor, energia, medicação, exercício), "
+                    "insights (lista de até 2 observações curtas e úteis do ponto de vista de saúde mental). "
+                    "Responda APENAS com JSON válido."
                 )},
                 {"role": "user", "content": nota_raw},
             ],
@@ -262,6 +288,67 @@ a{color:var(--primary);text-decoration:none}
 .btn-cancel{flex:1;background:var(--surface2);color:var(--text2);border:none;
   border-radius:12px;padding:12px;font-size:14px;cursor:pointer}
 
+/* Relato */
+.relato-wrap{margin:0 24px}
+.relato-card{background:var(--surface);border-radius:16px;padding:20px;border:1px solid var(--border)}
+.relato-prompt{font-size:15px;font-weight:600;color:var(--text);margin-bottom:14px}
+.relato-actions{display:flex;gap:10px;flex-wrap:wrap}
+.relato-btn{background:var(--surface2);border:1px solid var(--border);border-radius:12px;
+  padding:10px 18px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer}
+.relato-btn-audio{border-color:var(--primary);color:var(--primary)}
+.relato-btn-rec{border-color:#FCA5A5;color:#FCA5A5}
+.relato-btn-rec.recording{background:#450a0a;border-color:#FCA5A5;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+#relato-input{width:100%;background:var(--surface2);border:1px solid var(--border);
+  border-radius:12px;padding:12px;color:var(--text);font-size:14px;
+  resize:vertical;min-height:100px;margin:12px 0 8px;outline:none;font-family:inherit}
+#relato-input:focus{border-color:var(--primary)}
+.relato-submit{background:var(--primary);color:#0F0F14;border:none;border-radius:12px;
+  padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer}
+.relato-audio-status{font-size:13px;color:var(--text2);margin:10px 0;padding:8px 12px;
+  background:var(--surface2);border-radius:8px}
+
+/* Remédios prioritários */
+.remed-priority-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 24px}
+.remed-priority-card{background:var(--surface);border-radius:16px;padding:18px;border:1px solid var(--border)}
+.remed-priority-name{font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.remed-priority-dose{font-size:32px;font-weight:800;color:var(--text);line-height:1}
+.remed-priority-dose span{font-size:14px;font-weight:400;color:var(--text2)}
+.remed-priority-hist{display:flex;gap:4px;margin-top:12px;align-items:flex-end}
+.remed-hist-bar{flex:1;border-radius:3px 3px 0 0;min-height:4px;background:rgba(167,139,250,.3)}
+.remed-hist-bar.today{background:var(--primary)}
+.remed-hist-label{font-size:9px;color:var(--text3);text-align:center;margin-top:3px}
+/* Remédios secundários compactos */
+.remed-sec{margin:0 24px;background:var(--surface);border-radius:12px;
+  padding:12px 16px;border:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.remed-sec-label{font-size:11px;color:var(--text3);font-weight:600;margin-right:4px}
+.remed-sec-item{font-size:12px;color:var(--text2);background:var(--surface2);
+  border-radius:8px;padding:4px 10px}
+
+/* Exercício */
+.ex-card{margin:0 24px;background:var(--surface);border-radius:16px;padding:18px;border:1px solid var(--border)}
+.ex-title{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px}
+.ex-week{display:flex;gap:6px;align-items:flex-end}
+.ex-day{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.ex-bar{width:100%;border-radius:4px 4px 0 0;min-height:4px}
+.ex-day-lbl{font-size:9px;color:var(--text3)}
+.ex-intensidade{font-size:10px;color:var(--text2);margin-top:2px;font-weight:600}
+
+/* Check-in desabilitado */
+.checkin-btn-disabled{background:var(--surface2);color:var(--text3);border:1px solid var(--border);
+  border-radius:12px;padding:10px 20px;font-size:13px;font-weight:700;display:inline-block;cursor:not-allowed}
+
+/* Histórico compacto */
+.hist-compact{margin:0 24px;display:flex;flex-direction:column;gap:1px}
+.hist-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border-radius:0;font-size:12px}
+.hist-row:first-child{border-radius:12px 12px 0 0}
+.hist-row:last-child{border-radius:0 0 12px 12px}
+.hist-row:only-child{border-radius:12px}
+.hist-date{font-weight:700;color:var(--text);min-width:32px}
+.hist-vals{display:flex;gap:8px;flex:1;flex-wrap:wrap}
+.hist-chip{font-size:11px;color:var(--text2);background:var(--surface2);border-radius:6px;padding:2px 6px}
+.hist-acts{display:flex;gap:4px}
+
 @media(max-width:600px){
   .header{padding:20px 16px 0}
   .hero{margin:16px 16px 0;padding:18px}
@@ -274,6 +361,8 @@ a{color:var(--primary);text-decoration:none}
   .hist-table{display:none}
   .day-cards{display:flex}
   .dim-card{padding:14px}
+  .remed-priority-grid{margin:0 16px}
+  .remed-sec,.ex-card,.relato-wrap,.hist-compact{margin:0 16px}
 }
 """
 
@@ -310,6 +399,52 @@ function delDay(d){
     document.getElementById('del-data').value=d;
     document.getElementById('form-del').submit();
   }
+}
+function relatoTexto(){
+  document.getElementById('relato-actions').style.display='none';
+  document.getElementById('relato-text-area').style.display='block';
+}
+var _rec=null,_chunks=[];
+function relatoAudio(){
+  document.getElementById('relato-actions').style.display='none';
+  document.getElementById('relato-audio-area').style.display='block';
+}
+function toggleGravacao(){
+  var btn=document.getElementById('btn-rec');
+  if(!_rec||_rec.state==='inactive'){
+    navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+      _chunks=[];
+      _rec=new MediaRecorder(stream);
+      _rec.ondataavailable=function(e){if(e.data.size>0)_chunks.push(e.data);};
+      _rec.onstop=function(){document.getElementById('btn-send-audio').style.display='inline-block';};
+      _rec.start();
+      btn.textContent='\u23f9 Parar grava\xe7\xe3o';
+      btn.classList.add('recording');
+      document.getElementById('audio-status').textContent='Gravando...';
+    });
+  } else {
+    _rec.stop();_rec.stream.getTracks().forEach(function(t){t.stop();});
+    btn.textContent='\u23fa Iniciar grava\xe7\xe3o';
+    btn.classList.remove('recording');
+    document.getElementById('audio-status').textContent='Grava\xe7\xe3o conclu\xedda. Clique em Enviar.';
+  }
+}
+function enviarRelato(){
+  var texto=document.getElementById('relato-input').value.trim();
+  if(!texto)return;
+  var fd=new FormData();
+  fd.append('texto',texto);
+  fetch('/dashboard/relato',{method:'POST',body:fd})
+    .then(function(){location.reload();});
+}
+function enviarAudio(){
+  var blob=new Blob(_chunks,{type:'audio/webm'});
+  var fd=new FormData();
+  fd.append('audio',blob,'relato.webm');
+  document.getElementById('audio-status').textContent='Enviando e transcrevendo...';
+  document.getElementById('btn-send-audio').disabled=true;
+  fetch('/dashboard/relato-audio',{method:'POST',body:fd})
+    .then(function(){location.reload();});
 }
 </script>
 <!-- Modal editar -->
@@ -420,16 +555,23 @@ async def dashboard_get():
     body = ""
 
     # ---- Header ----
-    hoje = date.today()
-    hora = int(__import__("datetime").datetime.now().strftime("%H"))
-    saudacao = "Bom dia" if hora < 12 else ("Boa tarde" if hora < 18 else "Boa noite")
+    from datetime import datetime
+    _sp_tz = zoneinfo.ZoneInfo("America/Sao_Paulo")
+    _agora_sp = datetime.now(_sp_tz)
+    hora_sp = _agora_sp.hour
+    hoje = _agora_sp.date()
+    saudacao = "Bom dia" if hora_sp < 12 else ("Boa tarde" if hora_sp < 18 else "Boa noite")
+    if hora_sp >= 20:
+        checkin_btn = '<a class="checkin-btn" href="/checkin-web">+ Check-in</a>'
+    else:
+        checkin_btn = '<span class="checkin-btn-disabled">Check-in dispon\xedvel ap\xf3s 20h</span>'
     body += f"""
 <div class="header">
   <div class="header-left">
     <div class="header-left h1">{saudacao}</div>
     <div class="greeting">Monitoramento Mental</div>
   </div>
-  <a class="checkin-btn" href="/checkin-web">+ Check-in</a>
+  {checkin_btn}
 </div>"""
 
     # ---- Hero card ----
@@ -438,10 +580,14 @@ async def dashboard_get():
     energia_hoje = ultimo["energia"] if ultimo else None
     dor_hoje = ultimo["dor_fisica"] if ultimo else None
     sono_hoje = ultimo["sono_horas"] if ultimo else None
+    ex_hoje = ultimo["exercicio"] if ultimo else None
     frase = _hero_frase(mental_hoje, energia_hoje, dor_hoje)
     score_color = _score_color(mental_hoje) if mental_hoje is not None else "#4A4A5A"
-    score_display = mental_hoje if mental_hoje is not None else "—"
-    data_display = ultimo["data"].strftime("%-d de %B") if ultimo else "sem dados"
+    score_display = mental_hoje if mental_hoje is not None else "\u2014"
+    try:
+        data_display = ultimo["data"].strftime("%-d de %B") if ultimo else "sem dados"
+    except ValueError:
+        data_display = ultimo["data"].strftime("%d de %B") if ultimo else "sem dados"
 
     chips = ""
     if energia_hoje is not None:
@@ -451,6 +597,8 @@ async def dashboard_get():
     if dor_hoje is not None:
         dor_c = _score_color(dor_hoje, invert=True)
         chips += f'<div class="hero-chip"><span class="hc-val" style="color:{dor_c}">{dor_hoje}</span><div class="hc-lbl">\u2764 Dor</div></div>'
+    if ex_hoje and ex_hoje != "Nenhum":
+        chips += f'<div class="hero-chip"><span class="hc-val" style="color:#86EFAC;font-size:14px">{ex_hoje}</span><div class="hc-lbl">\u25b6 Exerc\xedcio</div></div>'
 
     body += f"""
 <div class="hero">
@@ -460,6 +608,54 @@ async def dashboard_get():
   {f'<div class="hero-meta">{chips}</div>' if chips else ''}
 </div>"""
 
+    # ---- Relato do dia ----
+    nota_hoje_raw = ultimo["nota_raw"] if ultimo else None
+    nota_hoje_sent = ultimo["nota_sentimento"] if ultimo else None
+    nota_hoje_cats = ultimo["nota_categorias"] if ultimo else None
+    if nota_hoje_raw and nota_hoje_raw.strip() not in ("Pular", "Texto", ""):
+        # Mostrar nota existente
+        if nota_hoje_sent:
+            resumo_hoje = nota_hoje_raw[:90] + ("\u2026" if len(nota_hoje_raw) > 90 else "")
+            sent_b = _sent_badge(nota_hoje_sent)
+            tags_hoje = "".join(f'<span class="note-tag">{c}</span>' for c in (nota_hoje_cats or []))
+        else:
+            analysis_hoje = await _process_nota_completa(nota_hoje_raw)
+            resumo_hoje = analysis_hoje.get("resumo") or nota_hoje_raw[:90]
+            sent_b = _sent_badge(analysis_hoje.get("sentimento", ""))
+            tags_hoje = "".join(f'<span class="note-tag">{c}</span>' for c in (analysis_hoje.get("categorias") or []))
+        body += f"""
+<div class="sec-label">Relato do dia</div>
+<div class="relato-wrap">
+<div class="relato-card">
+  <div class="note-header">{sent_b}</div>
+  <div class="note-resumo">{resumo_hoje}</div>
+  {f'<div class="note-cats">{tags_hoje}</div>' if tags_hoje else ''}
+  <details class="note-expand"><summary>Ver nota completa</summary><div class="note-raw-text">{nota_hoje_raw}</div></details>
+</div>
+</div>"""
+    else:
+        # Mostrar card de entrada
+        body += """
+<div class="sec-label">Relato do dia</div>
+<div class="relato-wrap">
+<div class="relato-card" id="relato-card">
+  <div class="relato-prompt">Como foi o seu dia?</div>
+  <div class="relato-actions" id="relato-actions">
+    <button class="relato-btn" onclick="relatoTexto()">&#9999; Escrever</button>
+    <button class="relato-btn relato-btn-audio" onclick="relatoAudio()">&#127897; Gravar &aacute;udio</button>
+  </div>
+  <div id="relato-text-area" style="display:none">
+    <textarea id="relato-input" placeholder="Descreva como foi seu dia, o que sentiu, o que aconteceu..."></textarea>
+    <button class="relato-submit" onclick="enviarRelato()">Salvar relato</button>
+  </div>
+  <div id="relato-audio-area" style="display:none">
+    <div class="relato-audio-status" id="audio-status">Pronto para gravar</div>
+    <button class="relato-btn relato-btn-rec" id="btn-rec" onclick="toggleGravacao()">&#9210; Iniciar grava&ccedil;&atilde;o</button>
+    <button class="relato-submit" id="btn-send-audio" style="display:none" onclick="enviarAudio()">Enviar &aacute;udio</button>
+  </div>
+</div>
+</div>"""
+
     # ---- Streak + heatmap ----
     s_atual = streak_row["streak_atual"] if streak_row else 0
     s_max = streak_row["streak_maximo"] if streak_row else 0
@@ -467,14 +663,114 @@ async def dashboard_get():
 
     heat_map = {r["data"]: r["saude_mental"] for r in heat_rows}
     dots = ""
+    from datetime import timedelta
     for i in range(29, -1, -1):
-        d = hoje - __import__("datetime").timedelta(days=i)
+        d = hoje - timedelta(days=i)
         mental_val = heat_map.get(d)
         color = _dot_color(mental_val)
-        title = d.strftime("%d/%m") + (f" — {mental_val}" if mental_val is not None else " — sem dado")
+        title = d.strftime("%d/%m") + (f" \u2014 {mental_val}" if mental_val is not None else " \u2014 sem dado")
         dots += f'<div class="dot" style="background:{color}" title="{title}"></div>'
 
-    body += f"""
+    # ---- Dimension cards ----
+    if not rows:
+        body += f"""
+<div class="sec-label">Consist\xeancia</div>
+<div class="streak-card">
+  <div class="streak-row">
+    <div class="streak-num">\U0001f525 {s_atual}</div>
+    <div class="streak-info">
+      <div class="streak-frase">{streak_frase}</div>
+      <div class="streak-max">M\xe1ximo: {s_max} dias</div>
+    </div>
+  </div>
+  <div class="heatmap">{dots}</div>
+</div>"""
+        body += """
+<div class="sec-label">Esta semana</div>
+<div style="margin:0 24px">
+  <div class="empty-state">
+    <div class="es-icon">\U0001f4cb</div>
+    <div class="es-title">Nenhum registro ainda</div>
+    <div class="es-sub">Seus dados v\xe3o aparecer aqui depois do primeiro check-in.<br>Use o bot\xe3o acima ou envie /checkin no WhatsApp.</div>
+  </div>
+</div>"""
+    else:
+        m = media
+        # Fallback remédios padrão
+        _remed_padrao = [
+            {"nome": r["nome"], "qtd": float(r["dose_padrao"] or 1), "tomado": True}
+            for r in remedios_padrao
+        ]
+
+        # ---- Remédios prioritários (Rivotril, Zolpidem) ----
+        REMED_PRIORITARIOS = {"rivotril", "zolpidem"}
+        hist_doses = {}  # nome -> lista de (data_str, qtd) mais recente primeiro
+        for r in rows:
+            rj = r["remedios_tomados"]
+            data_str_r = r["data"].strftime("%d/%m")
+            try:
+                itens = (rj if isinstance(rj, list) else _json.loads(rj)) if rj else _remed_padrao
+                for item in itens:
+                    if not item.get("tomado"):
+                        continue
+                    nome = item["nome"]
+                    qtd = item.get("qtd", 1)
+                    if nome.lower() in REMED_PRIORITARIOS:
+                        if nome not in hist_doses:
+                            hist_doses[nome] = []
+                        hist_doses[nome].append((data_str_r, qtd))
+            except Exception:
+                pass
+
+        remed_prio_html = ""
+        for nome_prio in ["Rivotril", "Zolpidem"]:
+            doses = hist_doses.get(nome_prio, [])
+            dose_hoje_val = doses[0][1] if doses else None
+            dose_display = f'{dose_hoje_val:g}' if dose_hoje_val is not None else "\u2014"
+            max_dose = max((d[1] for d in doses), default=1) or 1
+            barras = ""
+            doses_7 = doses[-7:]
+            for i, (ds_r, qtd) in enumerate(reversed(doses_7)):
+                h = max(4, int((qtd / max_dose) * 40))
+                cls = "remed-hist-bar today" if i == len(doses_7) - 1 else "remed-hist-bar"
+                barras += f'<div style="flex:1;display:flex;flex-direction:column;align-items:center"><div class="{cls}" style="height:{h}px;width:100%"></div><div class="remed-hist-label">{ds_r}</div></div>'
+            hist_inner = barras if barras else '<span style="font-size:12px;color:var(--text3)">sem hist\xf3rico</span>'
+            remed_prio_html += f"""
+<div class="remed-priority-card">
+  <div class="remed-priority-name">{nome_prio}</div>
+  <div class="remed-priority-dose">{dose_display}<span> comp.</span></div>
+  <div class="remed-priority-hist">{hist_inner}</div>
+</div>"""
+
+        body += '<div class="sec-label">Rem\xe9dios</div>'
+        body += f'<div class="remed-priority-grid">{remed_prio_html}</div>'
+
+        # Remédios secundários compactos
+        secundarios = [r for r in _remed_padrao if r["nome"].lower() not in REMED_PRIORITARIOS]
+        if secundarios:
+            sec_items = "".join(f'<span class="remed-sec-item">{s["nome"]}</span>' for s in secundarios)
+            body += f'<div class="remed-sec" style="margin-top:8px"><span class="remed-sec-label">Outros</span>{sec_items}</div>'
+
+        # ---- Exercício com destaque ----
+        EX_CORES = {"Nenhum": "#2A2A38", "Leve": "#FCD34D", "Moderado": "#86EFAC", "Intenso": "#A78BFA"}
+        EX_ALTURA = {"Nenhum": 4, "Leve": 16, "Moderado": 28, "Intenso": 40}
+        ex_html = ""
+        for r in list(reversed(rows))[-7:]:
+            ex_val = r["exercicio"] or "Nenhum"
+            cor = EX_CORES.get(ex_val, "#2A2A38")
+            altura = EX_ALTURA.get(ex_val, 4)
+            ds_ex = r["data"].strftime("%d/%m")
+            ex_html += f'<div class="ex-day"><div class="ex-bar" style="height:{altura}px;background:{cor}"></div><div class="ex-day-lbl">{ds_ex}</div><div class="ex-intensidade">{ex_val}</div></div>'
+
+        body += f"""
+<div class="sec-label">Exerc\xedcio</div>
+<div class="ex-card">
+  <div class="ex-title">Intensidade \u2014 7 dias</div>
+  <div class="ex-week">{ex_html}</div>
+</div>"""
+
+        # ---- Streak + heatmap ----
+        body += f"""
 <div class="sec-label">Consist\xeancia</div>
 <div class="streak-card">
   <div class="streak-row">
@@ -487,20 +783,7 @@ async def dashboard_get():
   <div class="heatmap">{dots}</div>
 </div>"""
 
-    # ---- Dimension cards ----
-    if not rows:
-        body += """
-<div class="sec-label">Esta semana</div>
-<div style="margin:0 24px">
-  <div class="empty-state">
-    <div class="es-icon">\U0001f4cb</div>
-    <div class="es-title">Nenhum registro ainda</div>
-    <div class="es-sub">Seus dados v\xe3o aparecer aqui depois do primeiro check-in.<br>Use o bot\xe3o acima ou envie /checkin no WhatsApp.</div>
-  </div>
-</div>"""
-    else:
-        m = media
-        # Moda do álcool nos últimos 7 dias
+        # ---- Dimension cards (média semana) ----
         alcool_vals = [r["alcool"] for r in rows if r["alcool"]]
         alcool_moda = max(set(alcool_vals), key=alcool_vals.count) if alcool_vals else None
         alcool_display = alcool_moda or "\u2014"
@@ -524,7 +807,6 @@ async def dashboard_get():
     <div class="dim-title">\u2764 F\xedsico &amp; Social</div>
     {_dim_row("Dor f\xedsica", m["dor"] if m else None, invert=True)}
     {_dim_row("Desempenho social", m["social"] if m else None)}
-    {(lambda ex_vals: f'<div class="dim-row"><span class="dim-lbl">\u25b6 Exerc\xedcio</span><span style="font-size:13px;font-weight:600;color:var(--text)">{max(set(ex_vals), key=ex_vals.count)}</span></div>' if ex_vals else "")([r["exercicio"] for r in rows if r["exercicio"]])}
   </div>
   <div class="dim-card">
     <div class="dim-title">\u2615 H\xe1bitos</div>
@@ -533,121 +815,36 @@ async def dashboard_get():
   </div>
 </div>"""
 
-        # ---- Histórico — desktop table ----
-        body += '<div class="sec-label">Hist\xf3rico di\xe1rio</div>'
-        body += '<div class="hist-wrap">'
-
-        # Table (desktop)
-        body += '<table class="hist-table"><thead><tr>'
-        body += '<th>Data</th><th>\u2728 Mental</th><th>\u26a1 Energia</th><th>\u2764 Dor</th>'
-        body += '<th>\u2605 Sono</th><th>\u23f0 Stress T</th><th>\u2665 Stress R</th>'
-        body += '<th>\u2615 \xc1lcool</th><th>\u25b6 Exerc.</th><th>\u2716 Cig.</th><th></th>'
-        body += '</tr></thead><tbody>'
-
+        # ---- Histórico diário compacto ----
+        body += '<div class="sec-label" style="padding-top:16px">Hist\xf3rico</div>'
+        body += '<div class="hist-compact">'
         for r in rows:
             di = r["data"].isoformat()
             ds = r["data"].strftime("%d/%m")
-            dor = r["dor_fisica"]; en = r["energia"]; sh = r["sono_horas"]
-            sq = r["sono_qualidade"]; me = r["saude_mental"]
-            st = r["stress_trabalho"]; sr = r["stress_relacionamento"]
-            al = r["alcool"] or ""; ex = r["exercicio"] or ""; ci = r["cigarros"]; so = r["desempenho_social"]
-            body += (
-                f'<tr>'
-                f'<td><b>{ds}</b></td>'
-                f'<td>{_badge(me)}</td>'
-                f'<td>{_badge(en)}</td>'
-                f'<td>{_badge(dor, invert=True)}</td>'
-                f'<td><span style="font-weight:600">{sh if sh is not None else "\u2014"}h</span></td>'
-                f'<td>{_badge(st, invert=True)}</td>'
-                f'<td>{_badge(sr, invert=True)}</td>'
-                f'<td><span style="font-size:13px;color:var(--text2)">{al or "\u2014"}</span></td>'
-                f'<td><span style="font-size:13px;color:var(--text2)">{ex or "\u2014"}</span></td>'
-                f'<td><span style="font-weight:600">{ci if ci is not None else "\u2014"}</span></td>'
-                f'<td style="white-space:nowrap">'
-                f'<button class="act-btn" onclick="openEdit(\'{di}\',\'{dor or ""}\',\'{en or ""}\',\'{sh or ""}\',\'{sq or ""}\',\'{me or ""}\',\'{st or ""}\',\'{sr or ""}\',\'{al}\',\'{ci or ""}\',\'{so or ""}\')">\u270f</button> '
-                f'<button class="act-btn del" onclick="delDay(\'{di}\')">\xd7</button>'
-                f'</td>'
-                f'</tr>'
-            )
-        body += '</tbody></table>'
-
-        # Day cards (mobile)
-        body += '<div class="day-cards">'
-        for r in rows:
-            di = r["data"].isoformat()
-            ds = r["data"].strftime("%d/%m")
-            dor = r["dor_fisica"]; en = r["energia"]; sh = r["sono_horas"]
-            sq = r["sono_qualidade"]; me = r["saude_mental"]
-            st = r["stress_trabalho"]; sr = r["stress_relacionamento"]
-            al = r["alcool"] or ""; ex = r["exercicio"] or ""; ci = r["cigarros"]; so = r["desempenho_social"]
+            me = r["saude_mental"]; en = r["energia"]; dor = r["dor_fisica"]
+            sh = r["sono_horas"]; al = r["alcool"] or ""; ex = r["exercicio"] or ""
+            sq = r["sono_qualidade"]; st = r["stress_trabalho"]; sr = r["stress_relacionamento"]
+            so = r["desempenho_social"]; ci = r["cigarros"]
             me_c = _score_color(me) if me is not None else "#4A4A5A"
-            body += f"""
-<div class="day-card">
-  <div class="day-card-header">
-    <div class="day-card-date">{ds}</div>
-    <div class="day-card-actions">
-      <button class="act-btn" onclick="openEdit('{di}','{dor or ""}','{en or ""}','{sh or ""}','{sq or ""}','{me or ""}','{st or ""}','{sr or ""}','{al}','{ci or ""}','{so or ""}')">\u270f</button>
-      <button class="act-btn del" onclick="delDay('{di}')">\xd7</button>
-    </div>
-  </div>
-  <div class="day-card-grid">
-    <div class="day-metric"><div class="dm-val" style="color:{me_c}">{me if me is not None else '\u2014'}</div><div class="dm-lbl">\u2728 Mental</div></div>
-    <div class="day-metric"><div class="dm-val" style="color:#67E8F9">{en if en is not None else '\u2014'}</div><div class="dm-lbl">\u26a1 Energia</div></div>
-    <div class="day-metric"><div class="dm-val" style="color:#A78BFA">{sh if sh is not None else '\u2014'}h</div><div class="dm-lbl">\u2605 Sono</div></div>
-    <div class="day-metric"><div class="dm-val">{ci if ci is not None else '\u2014'}</div><div class="dm-lbl">\u2716 Cig.</div></div>
-    <div class="day-metric"><div class="dm-val">{al or '\u2014'}</div><div class="dm-lbl">\u2615 \xc1lcool</div></div>
-    <div class="day-metric"><div class="dm-val">{ex or '\u2014'}</div><div class="dm-lbl">\u25b6 Exerc\xedcio</div></div>
-  </div>
-</div>"""
-        body += '</div>'  # day-cards
-        body += '</div>'  # hist-wrap
-
-        # ---- Remédios ----
-        # Fallback: quando remedios_tomados é NULL (check-in via WhatsApp), usa doses padrão
-        _remed_padrao = [
-            {"nome": r["nome"], "qtd": float(r["dose_padrao"] or 1), "tomado": True}
-            for r in remedios_padrao
-        ]
-
-        def _remed_item(i):
-            qtd = i.get("qtd")
-            qtd_str = f'{qtd:g}' if qtd is not None else "1"
-            return (
-                f'<div class="remed-item">'
-                f'<span class="remed-nome">{i["nome"]}</span>'
-                f'<span class="remed-qtd">\xd7{qtd_str}</span>'
-                f'</div>'
+            chips_h = ""
+            if me is not None: chips_h += f'<span class="hist-chip" style="color:{me_c}">mental {me}</span>'
+            if en is not None: chips_h += f'<span class="hist-chip">energia {en}</span>'
+            if sh is not None: chips_h += f'<span class="hist-chip">sono {sh}h</span>'
+            if dor is not None: chips_h += f'<span class="hist-chip">dor {dor}</span>'
+            if al: chips_h += f'<span class="hist-chip">{al}</span>'
+            if ex and ex != "Nenhum": chips_h += f'<span class="hist-chip">{ex}</span>'
+            body += (
+                f'<div class="hist-row">'
+                f'<span class="hist-date">{ds}</span>'
+                f'<div class="hist-vals">{chips_h}</div>'
+                f'<div class="hist-acts">'
+                f'<button class="act-btn" style="padding:4px 8px;font-size:11px" onclick="openEdit(\'{di}\',\'{dor or ""}\',\'{en or ""}\',\'{sh or ""}\',\'{sq or ""}\',\'{me or ""}\',\'{st or ""}\',\'{sr or ""}\',\'{al}\',\'{ci or ""}\',\'{so or ""}\')">\u270f</button>'
+                f'<button class="act-btn del" style="padding:4px 8px;font-size:11px" onclick="delDay(\'{di}\')">\xd7</button>'
+                f'</div></div>'
             )
+        body += '</div>'
 
-        has_remed = False
-        remed_html = ""
-        for r in rows:
-            data_str = r["data"].strftime("%d/%m")
-            rj = r["remedios_tomados"]
-            try:
-                if rj:
-                    itens = rj if isinstance(rj, list) else _json.loads(rj)
-                    tomados = [i for i in itens if i.get("tomado")]
-                    tag = ""
-                else:
-                    tomados = _remed_padrao
-                    tag = '<span class="remed-tag">dose padr\xe3o</span>'
-                if not tomados:
-                    continue
-                has_remed = True
-                items_html = "".join(_remed_item(i) for i in tomados)
-                remed_html += (
-                    f'<div class="remed-day">'
-                    f'<div class="remed-day-header"><span class="remed-day-date">{data_str}</span>{tag}</div>'
-                    f'<div class="remed-list">{items_html}</div>'
-                    f'</div>'
-                )
-            except Exception:
-                pass
-        if has_remed:
-            body += f'<div class="sec-label">Rem\xe9dios</div><div class="remed-card">{remed_html}</div>'
-
-        # ---- Notas ----
+        # ---- Notas do diário ----
         notas_entries = [
             (r["data"].strftime("%d/%m"), r["nota_raw"], r["nota_sentimento"], r["nota_categorias"])
             for r in rows
@@ -655,7 +852,7 @@ async def dashboard_get():
         ]
         if notas_entries:
             body += '<div class="sec-label">Notas do di\xe1rio</div><div class="notes-wrap">'
-            for data_str, nota_raw, sentimento, categorias in notas_entries:
+            for data_str_n, nota_raw, sentimento, categorias in notas_entries:
                 if not sentimento:
                     analysis = await _process_nota(nota_raw)
                     resumo = analysis.get("resumo") or nota_raw[:90]
@@ -669,7 +866,7 @@ async def dashboard_get():
                 body += f"""
 <div class="note-card">
   <div class="note-header">
-    <span class="note-date-lbl">{data_str}</span>
+    <span class="note-date-lbl">{data_str_n}</span>
     {badge}
   </div>
   <div class="note-resumo">{resumo}</div>
@@ -682,6 +879,62 @@ async def dashboard_get():
             body += '</div>'
 
     return _render(body)
+
+
+# ---------------------------------------------------------------------------
+# POST /dashboard/relato
+# ---------------------------------------------------------------------------
+
+@router.post("/dashboard/relato")
+async def dashboard_relato(texto: str = Form(...)):
+    pool = get_pool()
+    analysis = await _process_nota_completa(texto)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO checkins (user_id, data, nota_raw, nota_sentimento, nota_categorias)
+               VALUES (1, CURRENT_DATE, $1, $2, $3::jsonb)
+               ON CONFLICT (user_id, data) DO UPDATE SET
+               nota_raw=$1, nota_sentimento=$2, nota_categorias=$3::jsonb""",
+            texto,
+            analysis.get("sentimento", ""),
+            _json.dumps(analysis.get("categorias", []), ensure_ascii=False),
+        )
+    return RedirectResponse("/dashboard", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# POST /dashboard/relato-audio
+# ---------------------------------------------------------------------------
+
+@router.post("/dashboard/relato-audio")
+async def dashboard_relato_audio(audio: UploadFile = File(...)):
+    if not OPENAI_API_KEY:
+        return JSONResponse({"error": "OpenAI n\xe3o configurado"}, status_code=503)
+    try:
+        from openai import AsyncOpenAI
+        import io
+        ai = AsyncOpenAI(api_key=OPENAI_API_KEY)
+        audio_bytes = await audio.read()
+        resp = await ai.audio.transcriptions.create(
+            model="whisper-1",
+            file=("relato.webm", io.BytesIO(audio_bytes), "audio/webm"),
+        )
+        texto = resp.text
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+    pool = get_pool()
+    analysis = await _process_nota_completa(texto)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO checkins (user_id, data, nota_raw, nota_sentimento, nota_categorias)
+               VALUES (1, CURRENT_DATE, $1, $2, $3::jsonb)
+               ON CONFLICT (user_id, data) DO UPDATE SET
+               nota_raw=$1, nota_sentimento=$2, nota_categorias=$3::jsonb""",
+            texto,
+            analysis.get("sentimento", ""),
+            _json.dumps(analysis.get("categorias", []), ensure_ascii=False),
+        )
+    return RedirectResponse("/dashboard", status_code=303)
 
 
 # ---------------------------------------------------------------------------

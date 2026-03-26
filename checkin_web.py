@@ -1,4 +1,6 @@
 import json as _json
+from datetime import datetime
+import zoneinfo
 from fastapi import APIRouter, Form
 from fastapi.responses import HTMLResponse
 from database import get_pool
@@ -401,6 +403,14 @@ async def checkin_web_get():
     return html
 
 
+_MUITO_CEDO_HTML = _BASE_PAGE.format(inner="""
+<div class="icon">&#128336;</div>
+<div class="title">Check-in dispon\xedvel ap\xf3s 20h</div>
+<div class="body">O check-in di\xe1rio s\xf3 pode ser feito a partir das 20h (hor\xe1rio de Bras\xedlia).<br>Volte mais tarde.</div>
+<a class="link" href="/dashboard">\u2190 Voltar ao dashboard</a>
+""")
+
+
 @router.post("/checkin-web", response_class=HTMLResponse)
 async def checkin_web_post(
     user_id: int = Form(...),
@@ -417,6 +427,10 @@ async def checkin_web_post(
     desempenho_social: int = Form(...),
     remedios_tomados: str = Form(default="[]"),
 ):
+    hora_sp = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).hour
+    if hora_sp < 20:
+        return HTMLResponse(_MUITO_CEDO_HTML)
+
     try:
         remed_json = _json.dumps(_json.loads(remedios_tomados), ensure_ascii=False)
     except Exception:
