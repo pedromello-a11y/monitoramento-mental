@@ -31,7 +31,7 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
         msg = body["messages"][0]
     elif body.get("chats_updates"):
         last = (body["chats_updates"][0].get("after_update") or {}).get("last_message")
-        if last and last.get("from_me"):
+        if last and last.get("from_me") and last.get("source") != "api":
             chat_id = last.get("chat_id", "")
             is_group = "@g.us" in chat_id
             is_self_chat = last.get("from") == MY_WHATSAPP
