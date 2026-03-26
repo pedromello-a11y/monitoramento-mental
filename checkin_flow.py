@@ -42,7 +42,7 @@ PERGUNTAS = [
             "Quantas horas voc\xea dormiu?\n\n"
             "Conte o total real, incluindo cochilos.\n"
             "Ex: 6, 7.5, 8\n\n"
-            "Escolha ou digite o valor abaixo."
+            "Digite o valor (ex: 6, 7.5, 8)."
         ),
         "tipo_input": "numerico",
         "opcoes_json": [4, 5, 6, 7, 8, 9, 10],
@@ -146,7 +146,7 @@ PERGUNTAS = [
         "label": (
             "\u2716 *Cigarros*\n\n"
             "Quantos cigarros voc\xea fumou hoje?\n\n"
-            "Digite ou escolha o n\xfamero exato abaixo."
+            "Digite o n\xfamero exato (ex: 0, 2, 5)."
         ),
         "tipo_input": "numerico",
         "opcoes_json": [0, 1, 2, 3, 5, 8, 10],
