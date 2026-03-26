@@ -338,6 +338,13 @@ a{color:var(--primary);text-decoration:none}
 .checkin-btn-disabled{background:var(--surface2);color:var(--text3);border:1px solid var(--border);
   border-radius:12px;padding:10px 20px;font-size:13px;font-weight:700;display:inline-block;cursor:not-allowed}
 
+/* Botões de update rápido de remédio */
+.remed-upd-btn{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  width:32px;height:32px;font-size:18px;font-weight:700;color:var(--text2);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;line-height:1}
+.remed-upd-btn:active{background:var(--border)}
+.remed-upd-plus{color:var(--primary);border-color:var(--primary-dim)}
+
 /* Histórico compacto */
 .hist-compact{margin:0 24px;display:flex;flex-direction:column;gap:1px}
 .hist-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border-radius:0;font-size:12px}
@@ -472,6 +479,13 @@ function enviarAudio(){
       else{document.getElementById('audio-status').textContent='Erro ao transcrever. Tente novamente.';document.getElementById('btn-send-audio').disabled=false;}
     })
     .catch(function(){document.getElementById('audio-status').textContent='Erro de conex\xe3o.';document.getElementById('btn-send-audio').disabled=false;});
+}
+function remedUpdate(nome,delta){
+  var el=document.getElementById('remed-qtd-'+nome);
+  var fd=new FormData();
+  fd.append('nome',nome);fd.append('delta',delta);
+  fetch('/dashboard/remed-atualizar',{method:'POST',body:fd})
+    .then(function(r){if(r.ok)location.reload();});
 }
 </script>
 <!-- Modal editar -->
@@ -662,68 +676,7 @@ async def dashboard_get():
   {f'<div class="hero-meta">{chips}</div>' if chips else ''}
 </div>"""
 
-    # ---- Relato do dia ----
-    # Verificar se hoje já tem nota (só conta se o check-in mais recente for de hoje)
-    nota_hoje_raw = checkin_hoje["nota_raw"] if checkin_hoje else None
-    nota_hoje_tem = bool(nota_hoje_raw and nota_hoje_raw.strip() not in ("Pular", "Texto", ""))
-
-    body += '<div class="sec-label">Relato</div><div class="relato-wrap">'
-
-    if not nota_hoje_tem:
-        # card de entrada
-        body += """
-<div class="relato-card" id="relato-card">
-  <div class="relato-prompt">Como foi o seu dia?</div>
-  <div class="relato-actions" id="relato-actions">
-    <button class="relato-btn" onclick="relatoTexto()">&#9999; Escrever</button>
-    <button class="relato-btn relato-btn-audio" onclick="relatoAudio()">&#127897; Gravar &aacute;udio</button>
-  </div>
-  <div id="relato-text-area" style="display:none">
-    <textarea id="relato-input" placeholder="Descreva como foi seu dia, o que sentiu, o que aconteceu..."></textarea>
-    <button class="relato-submit" onclick="enviarRelato()">Salvar relato</button>
-  </div>
-  <div id="relato-audio-area" style="display:none">
-    <div class="relato-audio-status" id="audio-status">Pronto para gravar</div>
-    <button class="relato-btn relato-btn-rec" id="btn-rec" onclick="toggleGravacao()">&#9210; Iniciar grava&ccedil;&atilde;o</button>
-    <button class="relato-submit" id="btn-send-audio" style="display:none" onclick="enviarAudio()">Enviar &aacute;udio</button>
-  </div>
-</div>"""
-
-    # Mostrar todos os relatos dos últimos 7 dias
-    notas_exibir = [
-        r for r in (rows if rows else [])
-        if r["nota_raw"] and r["nota_raw"].strip() not in ("Pular", "Texto", "")
-    ]
-    for nr in notas_exibir:
-        nr_raw = nr["nota_raw"]
-        nr_sent = nr["nota_sentimento"]
-        nr_cats = nr["nota_categorias"]
-        nr_data = nr["data"].strftime("%d/%m")
-        is_hoje = nr["data"] == hoje
-        if nr_sent:
-            nr_resumo = nr_raw[:120] + ("\u2026" if len(nr_raw) > 120 else "")
-            sent_b = _sent_badge(nr_sent)
-            nr_tags = "".join(f'<span class="note-tag">{c}</span>' for c in (nr_cats or []))
-        else:
-            an = await _process_nota_completa(nr_raw)
-            nr_resumo = an.get("resumo") or nr_raw[:120]
-            sent_b = _sent_badge(an.get("sentimento", ""))
-            nr_tags = "".join(f'<span class="note-tag">{c}</span>' for c in (an.get("categorias") or []))
-        lbl = "Hoje" if is_hoje else nr_data
-        body += f"""
-<div class="relato-card" style="margin-top:10px">
-  <div class="note-header">
-    <span class="note-date-lbl">{lbl}</span>
-    {sent_b}
-  </div>
-  <div class="note-resumo">{nr_resumo}</div>
-  {f'<div class="note-cats">{nr_tags}</div>' if nr_tags else ''}
-  <details class="note-expand"><summary>Ver relato completo</summary><div class="note-raw-text">{nr_raw}</div></details>
-</div>"""
-
-    body += '</div>'  # relato-wrap
-
-    # ---- Streak + heatmap ----
+    # ---- Streak + heatmap (nível 2 na hierarquia) ----
     s_atual = streak_row["streak_atual"] if streak_row else 0
     s_max = streak_row["streak_maximo"] if streak_row else 0
     streak_frase = _streak_frase(s_atual, s_max)
@@ -807,8 +760,28 @@ async def dashboard_get():
             remed_prio_html += f"""
 <div class="remed-priority-card">
   <div class="remed-priority-name">{nome_prio}</div>
-  <div class="remed-priority-dose">{dose_display}<span> comp.</span></div>
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <div class="remed-priority-dose" id="remed-qtd-{nome_prio}">{dose_display}<span> comp.</span></div>
+    <div style="display:flex;gap:6px">
+      <button class="remed-upd-btn" onclick="remedUpdate('{nome_prio}',-0.5)">&#8722;</button>
+      <button class="remed-upd-btn remed-upd-plus" onclick="remedUpdate('{nome_prio}',0.5)">+</button>
+    </div>
+  </div>
   <div class="remed-priority-hist">{hist_inner}</div>
+</div>"""
+
+        # ---- Streak + heatmap (2º na hierarquia) ----
+        body += f"""
+<div class="sec-label">Consist\xeancia</div>
+<div class="streak-card">
+  <div class="streak-row">
+    <div class="streak-num">\U0001f525 {s_atual}</div>
+    <div class="streak-info">
+      <div class="streak-frase">{streak_frase}</div>
+      <div class="streak-max">M\xe1ximo: {s_max} dias</div>
+    </div>
+  </div>
+  <div class="heatmap">{dots}</div>
 </div>"""
 
         body += '<div class="sec-label">Rem\xe9dios</div>'
@@ -836,20 +809,6 @@ async def dashboard_get():
 <div class="ex-card">
   <div class="ex-title">Intensidade \u2014 7 dias</div>
   <div class="ex-week">{ex_html}</div>
-</div>"""
-
-        # ---- Streak + heatmap ----
-        body += f"""
-<div class="sec-label">Consist\xeancia</div>
-<div class="streak-card">
-  <div class="streak-row">
-    <div class="streak-num">\U0001f525 {s_atual}</div>
-    <div class="streak-info">
-      <div class="streak-frase">{streak_frase}</div>
-      <div class="streak-max">M\xe1ximo: {s_max} dias</div>
-    </div>
-  </div>
-  <div class="heatmap">{dots}</div>
 </div>"""
 
         # ---- Dimension cards (média semana) ----
@@ -914,6 +873,35 @@ async def dashboard_get():
                 f'</div></div>'
             )
         body += '</div>'
+
+        # ---- Relato pontual (baixa hierarquia) ----
+        nota_hoje = checkin_hoje["nota_raw"] if checkin_hoje and checkin_hoje["nota_raw"] else ""
+        nota_resumo = ""
+        if checkin_hoje and checkin_hoje["nota_sentimento"]:
+            nota_resumo = f'<div style="margin-top:10px;font-size:12px;color:var(--text2)">{_sent_badge(checkin_hoje["nota_sentimento"])} {checkin_hoje["nota_raw"] or ""}</div>'
+        body += f"""
+<div class="sec-label" style="padding-top:8px">Relato</div>
+<div class="relato-wrap">
+  <div class="relato-card">
+    <div class="relato-prompt" style="font-size:13px;color:var(--text2);font-weight:400">Algo pontual a registrar? Gatilhos, momentos, observa\xe7\xf5es.</div>
+    {nota_resumo}
+    <div id="relato-actions" class="relato-actions" style="margin-top:12px">
+      <button class="relato-btn" onclick="relatoTexto()">\u270f\ufe0f Texto</button>
+      <button class="relato-btn relato-btn-audio" onclick="relatoAudio()">\U0001f3a4 \xc1udio</button>
+    </div>
+    <div id="relato-text-area" style="display:none">
+      <textarea id="relato-input" placeholder="Ex: ansiedade depois da reuni\xe3o, dor nas costas \xe0 tarde..."></textarea>
+      <button class="relato-submit" onclick="enviarRelato()">Salvar</button>
+    </div>
+    <div id="relato-audio-area" style="display:none">
+      <div class="relato-audio-status" id="audio-status">Pronto para gravar.</div>
+      <div class="relato-actions">
+        <button class="relato-btn relato-btn-rec" id="btn-rec" onclick="toggleGravacao()">\u23fa Iniciar grava\xe7\xe3o</button>
+        <button class="relato-btn" id="btn-send-audio" style="display:none" onclick="enviarAudio()">Enviar</button>
+      </div>
+    </div>
+  </div>
+</div>"""
 
     # ---- HTML dos remédios no modal de edição ----
     remed_modal_html = ""
@@ -1056,6 +1044,43 @@ async def dashboard_editar(
 # ---------------------------------------------------------------------------
 # POST /dashboard/remover
 # ---------------------------------------------------------------------------
+
+@router.post("/dashboard/remed-atualizar")
+async def dashboard_remed_atualizar(nome: str = Form(...), delta: float = Form(...)):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT remedios_tomados FROM checkins WHERE user_id=1 AND data=CURRENT_DATE"
+        )
+        if row is None:
+            qtd = max(0.0, delta)
+            arr = [{"nome": nome, "qtd": qtd, "tomado": qtd > 0}]
+            await conn.execute(
+                "INSERT INTO checkins (user_id, data, remedios_tomados) VALUES (1, CURRENT_DATE, $1::jsonb) ON CONFLICT DO NOTHING",
+                _json.dumps(arr),
+            )
+        else:
+            rj = row["remedios_tomados"]
+            try:
+                arr = (rj if isinstance(rj, list) else _json.loads(rj)) if rj else []
+            except Exception:
+                arr = []
+            found = False
+            for item in arr:
+                if item.get("nome") == nome:
+                    item["qtd"] = max(0.0, float(item.get("qtd", 0)) + delta)
+                    item["tomado"] = item["qtd"] > 0
+                    found = True
+                    break
+            if not found:
+                qtd = max(0.0, delta)
+                arr.append({"nome": nome, "qtd": qtd, "tomado": qtd > 0})
+            await conn.execute(
+                "UPDATE checkins SET remedios_tomados=$1::jsonb WHERE user_id=1 AND data=CURRENT_DATE",
+                _json.dumps(arr),
+            )
+    return JSONResponse({"ok": True})
+
 
 @router.post("/dashboard/remover")
 async def dashboard_remover(data: str = Form(...)):
