@@ -427,10 +427,6 @@ async def checkin_web_post(
     desempenho_social: int = Form(...),
     remedios_tomados: str = Form(default="[]"),
 ):
-    hora_sp = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).hour
-    if hora_sp < 20:
-        return HTMLResponse(_MUITO_CEDO_HTML)
-
     try:
         remed_json = _json.dumps(_json.loads(remedios_tomados), ensure_ascii=False)
     except Exception:
@@ -444,7 +440,7 @@ async def checkin_web_post(
     try:
         async with pool.acquire() as conn:
             existente = await conn.fetchrow(
-                "SELECT id FROM checkins WHERE user_id = $1 AND data = CURRENT_DATE",
+                "SELECT id FROM checkins WHERE user_id = $1 AND data = (NOW() AT TIME ZONE 'America/Sao_Paulo')::date",
                 user_id,
             )
             if existente:
@@ -456,7 +452,7 @@ async def checkin_web_post(
                   (user_id, data, dor_fisica, energia, sono_horas, sono_qualidade,
                    saude_mental, stress_trabalho, stress_relacionamento, alcool,
                    exercicio, cigarros, desempenho_social, remedios_tomados)
-                VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
+                VALUES ($1, (NOW() AT TIME ZONE 'America/Sao_Paulo')::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
                 ON CONFLICT (user_id, data) DO UPDATE SET
                   dor_fisica = $2, energia = $3, sono_horas = $4, sono_qualidade = $5,
                   saude_mental = $6, stress_trabalho = $7, stress_relacionamento = $8,

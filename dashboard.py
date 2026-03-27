@@ -587,13 +587,13 @@ async def dashboard_get():
                        ROUND(AVG(saude_mental),1) AS mental, ROUND(AVG(stress_trabalho),1) AS stress_t,
                        ROUND(AVG(stress_relacionamento),1) AS stress_r, ROUND(AVG(cigarros),1) AS cigarros,
                        ROUND(AVG(desempenho_social),1) AS social
-                FROM checkins WHERE user_id = 1 AND data >= CURRENT_DATE - 6
+                FROM checkins WHERE user_id = 1 AND data >= (NOW() AT TIME ZONE 'America/Sao_Paulo')::date - 6
                 """,
             )
             heat_rows = await conn.fetch(
                 """
                 SELECT data, saude_mental FROM checkins
-                WHERE user_id = 1 AND data >= CURRENT_DATE - 29
+                WHERE user_id = 1 AND data >= (NOW() AT TIME ZONE 'America/Sao_Paulo')::date - 29
                 ORDER BY data ASC
                 """,
             )
@@ -612,10 +612,7 @@ async def dashboard_get():
     hora_sp = _agora_sp.hour
     hoje = _agora_sp.date()
     saudacao = "Bom dia" if hora_sp < 12 else ("Boa tarde" if hora_sp < 18 else "Boa noite")
-    if hora_sp >= 20:
-        checkin_btn = '<a class="checkin-btn" href="/checkin-web">+ Check-in</a>'
-    else:
-        checkin_btn = '<span class="checkin-btn-disabled">Check-in dispon\xedvel ap\xf3s 20h</span>'
+    checkin_btn = '<a class="checkin-btn" href="/checkin-web">+ Check-in</a>'
     body += f"""
 <div class="header">
   <div class="header-left">
@@ -875,9 +872,18 @@ async def dashboard_get():
         nota_salva_html = ""
         if nota_raw_hoje:
             badge = _sent_badge(nota_sent) + " " if nota_sent else ""
+            resumo = nota_raw_hoje[:90] + ("…" if len(nota_raw_hoje) > 90 else "")
+            ver_inteiro = (
+                f'<details style="margin-top:6px">'
+                f'<summary style="font-size:11px;color:var(--text3);cursor:pointer">ver inteiro</summary>'
+                f'<div style="margin-top:8px;font-size:13px;color:var(--text2);line-height:1.6">{nota_raw_hoje}</div>'
+                f'</details>'
+            ) if len(nota_raw_hoje) > 90 else ""
             nota_salva_html = (
-                f'<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);'
-                f'font-size:13px;color:var(--text2);line-height:1.6">{badge}{nota_raw_hoje}</div>'
+                f'<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">'
+                f'<div style="font-size:13px;color:var(--text2);line-height:1.6">{badge}{resumo}</div>'
+                f'{ver_inteiro}'
+                f'</div>'
             )
         body += f"""
 <div class="sec-label" style="padding-top:8px">Relato</div>
@@ -936,7 +942,7 @@ async def dashboard_relato(texto: str = Form(...)):
         async with pool.acquire() as conn:
             await conn.execute(
                 """INSERT INTO checkins (user_id, data, nota_raw)
-                   VALUES (1, CURRENT_DATE, $1)
+                   VALUES (1, (NOW() AT TIME ZONE 'America/Sao_Paulo')::date, $1)
                    ON CONFLICT (user_id, data) DO UPDATE SET nota_raw=$1""",
                 texto,
             )
@@ -949,7 +955,7 @@ async def dashboard_relato(texto: str = Form(...)):
                 async with pool.acquire() as conn:
                     await conn.execute(
                         "UPDATE checkins SET nota_sentimento=$1, nota_categorias=$2::jsonb "
-                        "WHERE user_id=1 AND data=CURRENT_DATE",
+                        "WHERE user_id=1 AND data=(NOW() AT TIME ZONE 'America/Sao_Paulo')::date",
                         sentimento, categorias,
                     )
         except Exception:
@@ -984,7 +990,7 @@ async def dashboard_relato_audio(audio: UploadFile = File(...)):
     async with pool.acquire() as conn:
         await conn.execute(
             """INSERT INTO checkins (user_id, data, nota_raw, nota_sentimento, nota_categorias)
-               VALUES (1, CURRENT_DATE, $1, $2, $3::jsonb)
+               VALUES (1, (NOW() AT TIME ZONE 'America/Sao_Paulo')::date, $1, $2, $3::jsonb)
                ON CONFLICT (user_id, data) DO UPDATE SET
                nota_raw=$1, nota_sentimento=$2, nota_categorias=$3::jsonb""",
             texto,
@@ -1050,13 +1056,13 @@ async def dashboard_remed_atualizar(nome: str = Form(...), delta: float = Form(.
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT remedios_tomados FROM checkins WHERE user_id=1 AND data=CURRENT_DATE"
+            "SELECT remedios_tomados FROM checkins WHERE user_id=1 AND data=(NOW() AT TIME ZONE 'America/Sao_Paulo')::date"
         )
         if row is None:
             qtd = max(0.0, delta)
             arr = [{"nome": nome, "qtd": qtd, "tomado": qtd > 0}]
             await conn.execute(
-                "INSERT INTO checkins (user_id, data, remedios_tomados) VALUES (1, CURRENT_DATE, $1::jsonb) ON CONFLICT DO NOTHING",
+                "INSERT INTO checkins (user_id, data, remedios_tomados) VALUES (1, (NOW() AT TIME ZONE 'America/Sao_Paulo')::date, $1::jsonb) ON CONFLICT DO NOTHING",
                 _json.dumps(arr),
             )
         else:
@@ -1076,7 +1082,7 @@ async def dashboard_remed_atualizar(nome: str = Form(...), delta: float = Form(.
                 qtd = max(0.0, delta)
                 arr.append({"nome": nome, "qtd": qtd, "tomado": qtd > 0})
             await conn.execute(
-                "UPDATE checkins SET remedios_tomados=$1::jsonb WHERE user_id=1 AND data=CURRENT_DATE",
+                "UPDATE checkins SET remedios_tomados=$1::jsonb WHERE user_id=1 AND data=(NOW() AT TIME ZONE 'America/Sao_Paulo')::date",
                 _json.dumps(arr),
             )
     return JSONResponse({"ok": True})
