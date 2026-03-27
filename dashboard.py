@@ -1,5 +1,6 @@
 import json as _json
-from datetime import date
+import html as _html_mod
+from datetime import date, timedelta, datetime
 import zoneinfo
 
 from fastapi import APIRouter, Form, UploadFile, File
@@ -15,7 +16,6 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 def _score_color(v, invert=False):
-    """Retorna cor de estado baseada no valor 0-10."""
     if v is None:
         return "#4A4A5A"
     pct = float(v) / 10
@@ -29,7 +29,6 @@ def _score_color(v, invert=False):
         return "#FCA5A5"
 
 def _trend(rows, field):
-    """Seta de tendência comparando metade mais recente vs mais antiga."""
     vals = [r[field] for r in rows if r[field] is not None]
     if len(vals) < 3:
         return ""
@@ -44,7 +43,6 @@ def _trend(rows, field):
     return '<span style="color:#FCA5A5;font-size:13px">\u2193</span>'
 
 def _hero_frase(mental, energia, dor):
-    """Frase humana baseada nos indicadores do dia mais recente."""
     if mental is None:
         return "Seus dados v\xe3o aparecer aqui depois do pr\xf3ximo check-in."
     m, e = float(mental), float(energia) if energia is not None else 5
@@ -78,35 +76,11 @@ def _sent_badge(s):
     if not s:
         return ""
     m = {
-        "positivo": ('<span style="background:#14532d;color:#86EFAC;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600">\u2022 positivo</span>'),
-        "neutro":   ('<span style="background:#1e293b;color:#94A3B8;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600">\u2022 neutro</span>'),
-        "negativo": ('<span style="background:#450a0a;color:#FCA5A5;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600">\u2022 pesado</span>'),
+        "positivo": '<span style="background:#14532d;color:#86EFAC;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600">\u2022 positivo</span>',
+        "neutro":   '<span style="background:#1e293b;color:#94A3B8;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600">\u2022 neutro</span>',
+        "negativo": '<span style="background:#450a0a;color:#FCA5A5;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600">\u2022 pesado</span>',
     }
     return m.get(s.lower(), "")
-
-async def _process_nota(nota_raw: str) -> dict:
-    if not OPENAI_API_KEY or not nota_raw or nota_raw.strip() in ("Pular", "Texto", ""):
-        return {}
-    try:
-        from openai import AsyncOpenAI
-        ai = AsyncOpenAI(api_key=OPENAI_API_KEY)
-        resp = await ai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": (
-                    "Analise o texto de di\xe1rio de sa\xfade mental e retorne JSON com: "
-                    "resumo (frase curta e acolhedora, m\xe1x 90 chars, primeira pessoa), "
-                    "sentimento (positivo/neutro/negativo), "
-                    "categorias (lista de at\xe9 4 temas curtos em portugu\xeas). "
-                    "Responda APENAS com JSON v\xe1lido."
-                )},
-                {"role": "user", "content": nota_raw},
-            ],
-            response_format={"type": "json_object"},
-        )
-        return _json.loads(resp.choices[0].message.content)
-    except Exception:
-        return {}
 
 async def _process_nota_completa(nota_raw: str) -> dict:
     if not OPENAI_API_KEY or not nota_raw.strip():
@@ -142,8 +116,39 @@ def _dot_color(mental):
     if v >= 3: return "#FCD34D"
     return "#FCA5A5"
 
+def _badge(val, invert=False):
+    if val is None or val == "":
+        return '<span style="color:#4A4A5A">\u2014</span>'
+    color = _score_color(float(val), invert=invert)
+    bg = color + "22"
+    return f'<span class="badge" style="background:{bg};color:{color}">{val}</span>'
+
+def _dim_row(label, val, max_val=10, invert=False):
+    if val is None or val == "":
+        return f'<div class="dim-row"><span class="dim-lbl">{label}</span><span style="color:#4A4A5A;font-size:13px">\u2014</span></div>'
+    v = float(val)
+    pct = int((v / max_val) * 100)
+    color = _score_color(v, invert=invert)
+    return (
+        f'<div class="dim-row">'
+        f'<span class="dim-lbl">{label}</span>'
+        f'<div class="dim-val">'
+        f'<span class="v" style="color:{color}">{val}</span>'
+        f'<div class="dim-bar"><div class="dim-bar-fill" style="width:{pct}%;background:{color}"></div></div>'
+        f'</div></div>'
+    )
+
+def _alim_label(v):
+    if v is None:
+        return "\u2014"
+    if v <= 2: return "Besteira"
+    if v <= 4: return "Ruim"
+    if v <= 6: return "Regular"
+    if v <= 8: return "Boa"
+    return "Saud\xe1vel"
+
 # ---------------------------------------------------------------------------
-# Template HTML
+# CSS
 # ---------------------------------------------------------------------------
 
 _CSS = """
@@ -156,16 +161,24 @@ _CSS = """
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;
-  padding:0 0 60px;max-width:860px;margin:0 auto}
+  padding:0 0 80px;max-width:860px;margin:0 auto}
 a{color:var(--primary);text-decoration:none}
 
 /* Header */
 .header{padding:28px 24px 0;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px}
 .header-left h1{font-size:14px;font-weight:600;color:var(--text2);letter-spacing:.5px;text-transform:uppercase}
 .header-left .greeting{font-size:26px;font-weight:700;color:var(--text);margin-top:4px;line-height:1.2}
-.header-right{text-align:right}
+.header-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .checkin-btn{background:var(--primary);color:#0F0F14;border:none;border-radius:12px;
   padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}
+.checkin-done{background:#14532d;color:#86EFAC;border:1px solid #166534;border-radius:12px;
+  padding:10px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.checkin-edit-btn{background:var(--surface2);color:var(--text2);border:1px solid var(--border);
+  border-radius:12px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;display:inline-block}
+
+/* Section label */
+.sec-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;
+  letter-spacing:.8px;padding:28px 24px 12px}
 
 /* Hero card */
 .hero{margin:20px 24px 0;background:linear-gradient(135deg,#1E1B2E 0%,#18181F 100%);
@@ -182,19 +195,94 @@ a{color:var(--primary);text-decoration:none}
 .hero-chip .hc-val{font-size:18px;font-weight:700;display:block;line-height:1.2}
 .hero-chip .hc-lbl{font-size:11px;color:var(--text2);margin-top:2px}
 
-/* Section label */
-.sec-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;
-  letter-spacing:.8px;padding:28px 24px 12px}
+/* Relato */
+.relato-card{margin:0 24px;background:var(--surface);border-radius:16px;padding:20px;border:1px solid var(--border)}
+.relato-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap}
+.relato-title{font-size:13px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.5px}
+.relato-resumo{font-size:15px;color:var(--text);line-height:1.6;font-weight:500}
+.relato-cats{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
+.relato-tag{background:rgba(167,139,250,.12);color:var(--primary);border-radius:20px;
+  padding:3px 10px;font-size:11px;font-weight:600}
+.relato-expand{margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.relato-expand summary{font-size:12px;color:var(--text2);cursor:pointer;user-select:none}
+.relato-raw-text{font-size:13px;color:var(--text2);line-height:1.6;margin-top:8px;white-space:pre-wrap}
+.relato-prompt{font-size:14px;color:var(--text2);margin-bottom:12px}
+.relato-actions{display:flex;gap:10px;flex-wrap:wrap}
+.relato-btn{background:var(--surface2);border:1px solid var(--border);border-radius:12px;
+  padding:10px 18px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer}
+.relato-btn-audio{border-color:var(--primary);color:var(--primary)}
+.relato-btn-rec{border-color:#FCA5A5;color:#FCA5A5}
+.relato-btn-rec.recording{background:#450a0a;border-color:#FCA5A5;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+#relato-input{width:100%;background:var(--surface2);border:1px solid var(--border);
+  border-radius:12px;padding:12px;color:var(--text);font-size:14px;
+  resize:vertical;min-height:100px;margin:12px 0 8px;outline:none;font-family:inherit}
+#relato-input:focus{border-color:var(--primary)}
+.relato-submit{background:var(--primary);color:#0F0F14;border:none;border-radius:12px;
+  padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer}
+.relato-edit-btn{background:var(--surface2);color:var(--text2);border:1px solid var(--border);
+  border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer}
+.relato-audio-status{font-size:13px;color:var(--text2);margin:10px 0;padding:8px 12px;
+  background:var(--surface2);border-radius:8px}
+.relato-insight{font-size:12px;color:var(--text2);background:rgba(167,139,250,.06);
+  border-left:2px solid var(--primary-dim);padding:8px 12px;border-radius:0 8px 8px 0;margin-top:8px;line-height:1.5}
 
-/* Streak + heatmap */
-.streak-card{margin:0 24px;background:var(--surface);border-radius:16px;
-  padding:20px;border:1px solid var(--border)}
-.streak-row{display:flex;align-items:center;gap:20px;margin-bottom:20px;flex-wrap:wrap}
-.streak-num{font-size:44px;font-weight:800;color:var(--warm);line-height:1}
-.streak-info .streak-frase{font-size:14px;color:var(--text);font-weight:500}
-.streak-info .streak-max{font-size:12px;color:var(--text2);margin-top:4px}
-.heatmap{display:flex;flex-wrap:wrap;gap:4px}
-.dot{width:12px;height:12px;border-radius:3px;flex-shrink:0}
+/* Remédios prioritários */
+.remed-priority-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 24px}
+.remed-priority-card{background:var(--surface);border-radius:16px;padding:18px;border:1px solid var(--border)}
+.remed-priority-name{font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.remed-priority-dose{font-size:32px;font-weight:800;color:var(--text);line-height:1}
+.remed-priority-dose span{font-size:14px;font-weight:400;color:var(--text2)}
+.remed-priority-hist{display:flex;gap:4px;margin-top:12px;align-items:flex-end}
+.remed-hist-bar{flex:1;border-radius:3px 3px 0 0;min-height:4px;background:rgba(167,139,250,.3)}
+.remed-hist-bar.today{background:var(--primary)}
+.remed-hist-label{font-size:9px;color:var(--text3);text-align:center;margin-top:3px}
+.remed-baseline{font-size:10px;color:var(--text3);margin-top:6px}
+/* Remédios secundários compactos */
+.remed-sec{margin:8px 24px 0;background:var(--surface);border-radius:12px;
+  padding:12px 16px;border:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.remed-sec-label{font-size:11px;color:var(--text3);font-weight:600;margin-right:4px}
+.remed-sec-item{font-size:12px;color:var(--text2);background:var(--surface2);
+  border-radius:8px;padding:4px 10px}
+/* Botões de update rápido */
+.remed-upd-btn{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  width:32px;height:32px;font-size:18px;font-weight:700;color:var(--text2);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;line-height:1}
+.remed-upd-btn:active{background:var(--border)}
+.remed-upd-plus{color:var(--primary);border-color:var(--primary-dim)}
+
+/* Exercício */
+.ex-card{margin:0 24px;background:var(--surface);border-radius:16px;padding:18px;border:1px solid var(--border)}
+.ex-title{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px}
+.ex-week{display:flex;gap:6px;align-items:flex-end}
+.ex-day{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.ex-bar{width:100%;border-radius:4px 4px 0 0;min-height:4px}
+.ex-day-lbl{font-size:9px;color:var(--text3)}
+.ex-intensidade{font-size:10px;color:var(--text2);margin-top:2px;font-weight:600}
+
+/* Contextos do dia */
+.ctx-wrap{margin:0 24px}
+.ctx-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.ctx-chip{background:var(--surface);border:1px solid var(--border);border-radius:20px;
+  padding:8px 14px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;
+  transition:all .15s;user-select:none}
+.ctx-chip.active{background:rgba(167,139,250,.2);border-color:var(--primary);color:var(--primary)}
+.ctx-chip:hover{border-color:var(--neutral)}
+.ctx-manage{font-size:11px;color:var(--text3);text-decoration:none;display:inline-block;margin-top:2px}
+.ctx-manage:hover{color:var(--primary)}
+
+/* Alimentação */
+.alim-card{margin:0 24px;background:var(--surface);border-radius:16px;padding:18px;border:1px solid var(--border)}
+.alim-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.alim-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:8px}
+.alim-slider{width:100%;-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;
+  background:linear-gradient(to right,var(--low),var(--warn),var(--good));outline:none;cursor:pointer}
+.alim-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;
+  border-radius:50%;background:var(--primary);cursor:pointer;border:2px solid var(--bg)}
+.alim-slider::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--primary);
+  cursor:pointer;border:2px solid var(--bg)}
+.alim-val{font-size:20px;font-weight:700;color:var(--text);min-width:28px;text-align:center}
+.alim-label-val{font-size:12px;color:var(--text2);margin-top:4px;text-align:center}
 
 /* Dimension cards */
 .dim-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 24px}
@@ -210,140 +298,15 @@ a{color:var(--primary);text-decoration:none}
 .dim-bar{width:36px;height:4px;border-radius:2px;background:var(--border);overflow:hidden}
 .dim-bar-fill{height:100%;border-radius:2px}
 
-/* Histórico — desktop table / mobile cards */
-.hist-wrap{margin:0 24px}
-.hist-table{width:100%;border-collapse:collapse;font-size:13px}
-.hist-table th{text-align:left;color:var(--text3);font-weight:600;font-size:11px;
-  text-transform:uppercase;letter-spacing:.6px;padding:0 8px 10px 0;border-bottom:1px solid var(--border)}
-.hist-table td{padding:12px 8px 12px 0;border-bottom:1px solid var(--surface2);vertical-align:middle}
-.hist-table tr:last-child td{border-bottom:none}
-.hist-table tr:hover td{background:rgba(255,255,255,.02)}
-.badge{display:inline-block;border-radius:8px;padding:3px 8px;font-size:12px;font-weight:700;min-width:28px;text-align:center}
-.act-btn{background:var(--surface2);border:none;border-radius:8px;padding:6px 10px;
-  cursor:pointer;color:var(--text2);font-size:13px;transition:background .15s}
-.act-btn:hover{background:var(--border)}
-.act-btn.del{color:var(--low)}
-
-/* Day cards (mobile) */
-.day-cards{display:none;flex-direction:column;gap:10px}
-.day-card{background:var(--surface);border-radius:14px;padding:16px;border:1px solid var(--border)}
-.day-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.day-card-date{font-size:14px;font-weight:700}
-.day-card-actions{display:flex;gap:8px}
-.day-card-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-.day-metric{background:var(--surface2);border-radius:10px;padding:8px 10px}
-.day-metric .dm-val{font-size:18px;font-weight:700}
-.day-metric .dm-lbl{font-size:10px;color:var(--text2);margin-top:2px}
-
-/* Remédios */
-.remed-card{margin:0 24px;background:var(--surface);border-radius:16px;
-  padding:0;border:1px solid var(--border);overflow:hidden}
-.remed-day{border-bottom:1px solid var(--border);padding:14px 18px}
-.remed-day:last-child{border-bottom:none}
-.remed-day-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.remed-day-date{font-size:12px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
-.remed-tag{font-size:10px;color:var(--text3);font-weight:500}
-.remed-list{display:flex;flex-direction:column;gap:6px}
-.remed-item{display:flex;align-items:center;justify-content:space-between;
-  background:var(--surface2);border-radius:10px;padding:8px 12px}
-.remed-nome{font-size:13px;font-weight:600;color:var(--text)}
-.remed-qtd{font-size:13px;font-weight:700;color:var(--primary);background:rgba(167,139,250,.12);
-  border-radius:8px;padding:2px 8px;min-width:28px;text-align:center}
-
-/* Notas */
-.notes-wrap{margin:0 24px;display:flex;flex-direction:column;gap:12px}
-.note-card{background:var(--surface);border-radius:16px;padding:20px;border:1px solid var(--border)}
-.note-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.note-date-lbl{font-size:12px;color:var(--text2);font-weight:600}
-.note-resumo{font-size:15px;color:var(--text);line-height:1.6;font-weight:500}
-.note-cats{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
-.note-tag{background:rgba(167,139,250,.12);color:var(--primary);border-radius:20px;
-  padding:3px 10px;font-size:11px;font-weight:600}
-.note-expand{margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
-.note-expand summary{font-size:12px;color:var(--text2);cursor:pointer;user-select:none}
-.note-raw-text{font-size:13px;color:var(--text2);line-height:1.6;margin-top:8px}
-
-/* Empty state */
-.empty-state{text-align:center;padding:48px 24px}
-.empty-state .es-icon{font-size:36px;margin-bottom:12px}
-.empty-state .es-title{font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px}
-.empty-state .es-sub{font-size:13px;color:var(--text2);line-height:1.6}
-
-/* Modal */
-.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;
-  overflow-y:auto;padding:20px}
-.modal.open{display:block}
-.modal-box{background:var(--surface);border-radius:20px;padding:24px;
-  max-width:460px;margin:40px auto;border:1px solid var(--border)}
-.modal-title{font-size:16px;font-weight:700;margin-bottom:20px;color:var(--text)}
-.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.field label{font-size:11px;color:var(--text2);font-weight:600;display:block;
-  text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.field input{width:100%;background:var(--surface2);border:1px solid var(--border);
-  border-radius:10px;padding:10px 12px;color:var(--text);font-size:14px;outline:none}
-.field input:focus{border-color:var(--primary)}
-.modal-footer{display:flex;gap:10px;margin-top:20px}
-.btn-save{flex:1;background:var(--primary);color:#0F0F14;border:none;border-radius:12px;
-  padding:12px;font-size:14px;font-weight:700;cursor:pointer}
-.btn-cancel{flex:1;background:var(--surface2);color:var(--text2);border:none;
-  border-radius:12px;padding:12px;font-size:14px;cursor:pointer}
-
-/* Relato */
-.relato-wrap{margin:0 24px}
-.relato-card{background:var(--surface);border-radius:16px;padding:20px;border:1px solid var(--border)}
-.relato-prompt{font-size:15px;font-weight:600;color:var(--text);margin-bottom:14px}
-.relato-actions{display:flex;gap:10px;flex-wrap:wrap}
-.relato-btn{background:var(--surface2);border:1px solid var(--border);border-radius:12px;
-  padding:10px 18px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer}
-.relato-btn-audio{border-color:var(--primary);color:var(--primary)}
-.relato-btn-rec{border-color:#FCA5A5;color:#FCA5A5}
-.relato-btn-rec.recording{background:#450a0a;border-color:#FCA5A5;animation:pulse 1s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
-#relato-input{width:100%;background:var(--surface2);border:1px solid var(--border);
-  border-radius:12px;padding:12px;color:var(--text);font-size:14px;
-  resize:vertical;min-height:100px;margin:12px 0 8px;outline:none;font-family:inherit}
-#relato-input:focus{border-color:var(--primary)}
-.relato-submit{background:var(--primary);color:#0F0F14;border:none;border-radius:12px;
-  padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer}
-.relato-audio-status{font-size:13px;color:var(--text2);margin:10px 0;padding:8px 12px;
-  background:var(--surface2);border-radius:8px}
-
-/* Remédios prioritários */
-.remed-priority-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 24px}
-.remed-priority-card{background:var(--surface);border-radius:16px;padding:18px;border:1px solid var(--border)}
-.remed-priority-name{font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
-.remed-priority-dose{font-size:32px;font-weight:800;color:var(--text);line-height:1}
-.remed-priority-dose span{font-size:14px;font-weight:400;color:var(--text2)}
-.remed-priority-hist{display:flex;gap:4px;margin-top:12px;align-items:flex-end}
-.remed-hist-bar{flex:1;border-radius:3px 3px 0 0;min-height:4px;background:rgba(167,139,250,.3)}
-.remed-hist-bar.today{background:var(--primary)}
-.remed-hist-label{font-size:9px;color:var(--text3);text-align:center;margin-top:3px}
-/* Remédios secundários compactos */
-.remed-sec{margin:0 24px;background:var(--surface);border-radius:12px;
-  padding:12px 16px;border:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.remed-sec-label{font-size:11px;color:var(--text3);font-weight:600;margin-right:4px}
-.remed-sec-item{font-size:12px;color:var(--text2);background:var(--surface2);
-  border-radius:8px;padding:4px 10px}
-
-/* Exercício */
-.ex-card{margin:0 24px;background:var(--surface);border-radius:16px;padding:18px;border:1px solid var(--border)}
-.ex-title{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px}
-.ex-week{display:flex;gap:6px;align-items:flex-end}
-.ex-day{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
-.ex-bar{width:100%;border-radius:4px 4px 0 0;min-height:4px}
-.ex-day-lbl{font-size:9px;color:var(--text3)}
-.ex-intensidade{font-size:10px;color:var(--text2);margin-top:2px;font-weight:600}
-
-/* Check-in desabilitado */
-.checkin-btn-disabled{background:var(--surface2);color:var(--text3);border:1px solid var(--border);
-  border-radius:12px;padding:10px 20px;font-size:13px;font-weight:700;display:inline-block;cursor:not-allowed}
-
-/* Botões de update rápido de remédio */
-.remed-upd-btn{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
-  width:32px;height:32px;font-size:18px;font-weight:700;color:var(--text2);cursor:pointer;
-  display:flex;align-items:center;justify-content:center;line-height:1}
-.remed-upd-btn:active{background:var(--border)}
-.remed-upd-plus{color:var(--primary);border-color:var(--primary-dim)}
+/* Streak + heatmap */
+.streak-card{margin:0 24px;background:var(--surface);border-radius:16px;
+  padding:20px;border:1px solid var(--border)}
+.streak-row{display:flex;align-items:center;gap:20px;margin-bottom:20px;flex-wrap:wrap}
+.streak-num{font-size:44px;font-weight:800;color:var(--warm);line-height:1}
+.streak-info .streak-frase{font-size:14px;color:var(--text);font-weight:500}
+.streak-info .streak-max{font-size:12px;color:var(--text2);margin-top:4px}
+.heatmap{display:flex;flex-wrap:wrap;gap:4px}
+.dot{width:12px;height:12px;border-radius:3px;flex-shrink:0}
 
 /* Histórico compacto */
 .hist-compact{margin:0 24px;display:flex;flex-direction:column;gap:1px}
@@ -356,22 +319,72 @@ a{color:var(--primary);text-decoration:none}
 .hist-chip{font-size:11px;color:var(--text2);background:var(--surface2);border-radius:6px;padding:2px 6px}
 .hist-acts{display:flex;gap:4px}
 
+/* Badge */
+.badge{display:inline-block;border-radius:8px;padding:3px 8px;font-size:12px;font-weight:700;min-width:28px;text-align:center}
+.act-btn{background:var(--surface2);border:none;border-radius:8px;padding:6px 10px;
+  cursor:pointer;color:var(--text2);font-size:13px;transition:background .15s}
+.act-btn:hover{background:var(--border)}
+.act-btn.del{color:var(--low)}
+
+/* Modal */
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;
+  overflow-y:auto;padding:20px}
+.modal.open{display:block}
+.modal-box{background:var(--surface);border-radius:20px;padding:24px;
+  max-width:480px;margin:40px auto;border:1px solid var(--border)}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:20px;color:var(--text)}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field label{font-size:11px;color:var(--text2);font-weight:600;display:block;
+  text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.field input,.field textarea,.field select{width:100%;background:var(--surface2);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;color:var(--text);font-size:14px;outline:none;font-family:inherit}
+.field input:focus,.field textarea:focus{border-color:var(--primary)}
+.field textarea{resize:vertical;min-height:80px}
+.modal-footer{display:flex;gap:10px;margin-top:20px}
+.btn-save{flex:1;background:var(--primary);color:#0F0F14;border:none;border-radius:12px;
+  padding:12px;font-size:14px;font-weight:700;cursor:pointer}
+.btn-cancel{flex:1;background:var(--surface2);color:var(--text2);border:none;
+  border-radius:12px;padding:12px;font-size:14px;cursor:pointer}
+.modal-section{margin-top:14px;border-top:1px solid var(--border);padding-top:14px}
+.modal-section-title{font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+
+/* Empty state */
+.empty-state{text-align:center;padding:48px 24px}
+.empty-state .es-icon{font-size:36px;margin-bottom:12px}
+.empty-state .es-title{font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px}
+.empty-state .es-sub{font-size:13px;color:var(--text2);line-height:1.6}
+
+/* Editor de contextos */
+.editor-wrap{max-width:480px;margin:0 auto;padding:24px}
+.editor-item{display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface);border-radius:10px;padding:12px 16px;margin-bottom:8px;border:1px solid var(--border)}
+.editor-label{font-size:14px;color:var(--text)}
+.editor-btn{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:6px 12px;font-size:12px;color:var(--text2);cursor:pointer}
+.editor-btn.desat{color:var(--low);border-color:var(--low)}
+.editor-form{margin-top:20px;display:flex;gap:10px}
+.editor-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  padding:10px 14px;color:var(--text);font-size:14px;outline:none;font-family:inherit}
+.editor-input:focus{border-color:var(--primary)}
+.editor-submit{background:var(--primary);color:#0F0F14;border:none;border-radius:10px;
+  padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer}
+
 @media(max-width:600px){
   .header{padding:20px 16px 0}
   .hero{margin:16px 16px 0;padding:18px}
   .hero-score{font-size:44px}
   .sec-label{padding:22px 16px 10px}
-  .streak-card,.remed-card{margin:0 16px}
-  .dim-grid{margin:0 16px;grid-template-columns:1fr 1fr;gap:10px}
-  .hist-wrap{margin:0 16px}
-  .notes-wrap{margin:0 16px}
-  .hist-table{display:none}
-  .day-cards{display:flex}
-  .dim-card{padding:14px}
+  .relato-card,.remed-priority-grid,.ex-card,.ctx-wrap,.alim-card,.dim-grid,
+  .streak-card,.hist-compact,.remed-sec{margin-left:16px;margin-right:16px}
   .remed-priority-grid{margin:0 16px}
-  .remed-sec,.ex-card,.relato-wrap,.hist-compact{margin:0 16px}
+  .dim-grid{grid-template-columns:1fr 1fr;gap:10px}
+  .dim-card{padding:14px}
 }
 """
+
+# ---------------------------------------------------------------------------
+# HTML Shell
+# ---------------------------------------------------------------------------
 
 _HTML_SHELL = """<!DOCTYPE html>
 <html lang="pt-BR">
@@ -386,29 +399,42 @@ _HTML_SHELL = """<!DOCTYPE html>
 <body>
 BODY_PLACEHOLDER
 <script>
-function openEdit(d,dor,en,sh,sq,me,st,sr,al,ci,so,rj){
-  document.getElementById('ed-data').value=d;
-  document.getElementById('ed-dor').value=dor;
-  document.getElementById('ed-en').value=en;
-  document.getElementById('ed-sh').value=sh;
-  document.getElementById('ed-sq').value=sq;
-  document.getElementById('ed-me').value=me;
-  document.getElementById('ed-st').value=st;
-  document.getElementById('ed-sr').value=sr;
-  document.getElementById('ed-al').value=al;
-  document.getElementById('ed-ci').value=ci;
-  document.getElementById('ed-so').value=so;
-  // preencher quantidades dos remédios
-  var remedios=document.querySelectorAll('.ed-rem-qtd');
-  remedios.forEach(function(inp){
-    var nome=inp.dataset.nome;
-    var qtd=1;
-    if(rj){try{var arr=JSON.parse(rj);arr.forEach(function(r){if(r.nome===nome)qtd=r.qtd||1;});}catch(e){}}
-    inp.value=qtd;
+// ── Modal de edição ──────────────────────────────────────────────────────────
+function openEdit(btn) {
+  var d  = btn.dataset;
+  document.getElementById('ed-data').value = d.data;
+  document.getElementById('ed-dor').value  = d.dor  || '';
+  document.getElementById('ed-en').value   = d.en   || '';
+  document.getElementById('ed-sh').value   = d.sh   || '';
+  document.getElementById('ed-sq').value   = d.sq   || '';
+  document.getElementById('ed-me').value   = d.me   || '';
+  document.getElementById('ed-st').value   = d.st   || '';
+  document.getElementById('ed-sr').value   = d.sr   || '';
+  document.getElementById('ed-al').value   = d.al   || '';
+  document.getElementById('ed-ci').value   = d.ci   || '';
+  document.getElementById('ed-so').value   = d.so   || '';
+  document.getElementById('ed-alim').value = d.alim || '';
+  document.getElementById('ed-relato').value = d.relato || '';
+  // Remédios
+  var rj = d.rj || '[]';
+  var arr = [];
+  try { arr = JSON.parse(rj); } catch(e) {}
+  document.querySelectorAll('.ed-rem-qtd').forEach(function(inp){
+    var nome = inp.dataset.nome;
+    var qtd = 0;
+    arr.forEach(function(r){ if(r.nome === nome) qtd = r.qtd || 0; });
+    inp.value = qtd;
+  });
+  // Contextos
+  var ctx = d.ctx || '[]';
+  var ctxArr = [];
+  try { ctxArr = JSON.parse(ctx); } catch(e) {}
+  document.querySelectorAll('.ed-ctx-check').forEach(function(cb){
+    cb.checked = ctxArr.indexOf(cb.value) !== -1;
   });
   document.getElementById('modal').classList.add('open');
 }
-function closeModal(){document.getElementById('modal').classList.remove('open');}
+function closeModal(){ document.getElementById('modal').classList.remove('open'); }
 function buildRemedJson(){
   var arr=[];
   document.querySelectorAll('.ed-rem-qtd').forEach(function(inp){
@@ -417,11 +443,23 @@ function buildRemedJson(){
   });
   document.getElementById('ed-remed-json').value=JSON.stringify(arr);
 }
+function buildCtxJson(){
+  var arr=[];
+  document.querySelectorAll('.ed-ctx-check:checked').forEach(function(cb){ arr.push(cb.value); });
+  document.getElementById('ed-ctx-json').value=JSON.stringify(arr);
+}
 function delDay(d){
-  if(confirm('Remover o registro de '+d+'? Esta a\xe7\xe3o n\xe3o pode ser desfeita.')){
+  if(confirm('Remover o registro de '+d+'? Esta ação não pode ser desfeita.')){
     document.getElementById('del-data').value=d;
     document.getElementById('form-del').submit();
   }
+}
+// ── Relato ──────────────────────────────────────────────────────────────────
+function mostrarFormRelato(){
+  document.getElementById('relato-saved').style.display='none';
+  document.getElementById('relato-form').style.display='block';
+  var raw=document.getElementById('relato-saved-raw');
+  if(raw){ document.getElementById('relato-input').value=raw.dataset.raw||''; }
 }
 function relatoTexto(){
   document.getElementById('relato-actions').style.display='none';
@@ -441,15 +479,15 @@ function toggleGravacao(){
       _rec.ondataavailable=function(e){if(e.data.size>0)_chunks.push(e.data);};
       _rec.onstop=function(){document.getElementById('btn-send-audio').style.display='inline-block';};
       _rec.start();
-      btn.textContent='\u23f9 Parar grava\xe7\xe3o';
+      btn.textContent='\u23f9 Parar gravação';
       btn.classList.add('recording');
       document.getElementById('audio-status').textContent='Gravando...';
     });
   } else {
     _rec.stop();_rec.stream.getTracks().forEach(function(t){t.stop();});
-    btn.textContent='\u23fa Iniciar grava\xe7\xe3o';
+    btn.textContent='\u23fa Iniciar gravação';
     btn.classList.remove('recording');
-    document.getElementById('audio-status').textContent='Grava\xe7\xe3o conclu\xedda. Clique em Enviar.';
+    document.getElementById('audio-status').textContent='Gravação concluída. Clique em Enviar.';
   }
 }
 function enviarRelato(){
@@ -457,20 +495,18 @@ function enviarRelato(){
   if(!texto)return;
   var btn=document.querySelector('.relato-submit');
   btn.textContent='Salvando...';btn.disabled=true;
-  var fd=new FormData();
-  fd.append('texto',texto);
+  var fd=new FormData();fd.append('texto',texto);
   fetch('/dashboard/relato',{method:'POST',body:fd})
     .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
     .then(function(res){
       if(res.ok&&res.j.ok){location.reload();}
       else{btn.textContent='Erro: '+(res.j.error||'tente novamente');btn.disabled=false;}
     })
-    .catch(function(){btn.textContent='Erro de conex\xe3o';btn.disabled=false;});
+    .catch(function(){btn.textContent='Erro de conexão';btn.disabled=false;});
 }
 function enviarAudio(){
   var blob=new Blob(_chunks,{type:'audio/webm'});
-  var fd=new FormData();
-  fd.append('audio',blob,'relato.webm');
+  var fd=new FormData();fd.append('audio',blob,'relato.webm');
   document.getElementById('audio-status').textContent='Enviando e transcrevendo...';
   document.getElementById('btn-send-audio').disabled=true;
   fetch('/dashboard/relato-audio',{method:'POST',body:fd})
@@ -478,42 +514,73 @@ function enviarAudio(){
       if(r.ok||r.redirected){location.reload();}
       else{document.getElementById('audio-status').textContent='Erro ao transcrever. Tente novamente.';document.getElementById('btn-send-audio').disabled=false;}
     })
-    .catch(function(){document.getElementById('audio-status').textContent='Erro de conex\xe3o.';document.getElementById('btn-send-audio').disabled=false;});
+    .catch(function(){document.getElementById('audio-status').textContent='Erro de conexão.';document.getElementById('btn-send-audio').disabled=false;});
 }
+// ── Remédios quick update ────────────────────────────────────────────────────
 function remedUpdate(nome,delta){
-  var el=document.getElementById('remed-qtd-'+nome);
-  var fd=new FormData();
-  fd.append('nome',nome);fd.append('delta',delta);
+  var fd=new FormData();fd.append('nome',nome);fd.append('delta',delta);
   fetch('/dashboard/remed-atualizar',{method:'POST',body:fd})
     .then(function(r){if(r.ok)location.reload();});
+}
+// ── Contextos toggle ─────────────────────────────────────────────────────────
+function toggleContexto(el, label){
+  el.classList.toggle('active');
+  var fd=new FormData();fd.append('label',label);
+  fetch('/dashboard/contexto-toggle',{method:'POST',body:fd})
+    .catch(function(){ el.classList.toggle('active'); }); // revert on error
+}
+// ── Alimentação ──────────────────────────────────────────────────────────────
+var _alimTimer=null;
+function alimInput(v){
+  document.getElementById('alim-val-display').textContent=v;
+  document.getElementById('alim-label-display').textContent=alimLabel(v);
+  clearTimeout(_alimTimer);
+  _alimTimer=setTimeout(function(){
+    var fd=new FormData();fd.append('valor',v);
+    fetch('/dashboard/alimentacao-atualizar',{method:'POST',body:fd});
+  },600);
+}
+function alimLabel(v){
+  v=parseInt(v);
+  if(v<=2)return'Besteira';if(v<=4)return'Ruim';if(v<=6)return'Regular';if(v<=8)return'Boa';return'Saudável';
 }
 </script>
 <!-- Modal editar -->
 <div class="modal" id="modal">
 <div class="modal-box">
-  <div class="modal-title">\u270f Editar registro</div>
+  <div class="modal-title">&#9998; Editar registro</div>
   <form method="post" action="/dashboard/editar">
   <input type="hidden" name="data" id="ed-data">
   <div class="field-grid">
-    <div class="field"><label>\u2728 Sa\xfade mental</label><input name="saude_mental" id="ed-me" type="number" min="0" max="10"></div>
-    <div class="field"><label>\u26a1 Energia</label><input name="energia" id="ed-en" type="number" min="0" max="10"></div>
-    <div class="field"><label>\u2764 Dor f\xedsica</label><input name="dor_fisica" id="ed-dor" type="number" min="0" max="10"></div>
-    <div class="field"><label>\u2605 Sono (horas)</label><input name="sono_horas" id="ed-sh" type="number" min="0" max="16" step="0.5"></div>
-    <div class="field"><label>\u263d Sono qualidade</label><input name="sono_qualidade" id="ed-sq" type="number" min="0" max="10"></div>
-    <div class="field"><label>\u23f0 Stress trabalho</label><input name="stress_trabalho" id="ed-st" type="number" min="0" max="10"></div>
-    <div class="field"><label>\u2665 Stress rel.</label><input name="stress_relacionamento" id="ed-sr" type="number" min="0" max="10"></div>
-    <div class="field"><label>\u2615 \xc1lcool</label><input name="alcool" id="ed-al" type="text" placeholder="Nenhum / Pouco / Moderado / Muito"></div>
-    <div class="field"><label>\u2716 Cigarros</label><input name="cigarros" id="ed-ci" type="number" min="0"></div>
-    <div class="field"><label>\u2600 Social</label><input name="desempenho_social" id="ed-so" type="number" min="0" max="10"></div>
+    <div class="field"><label>&#10024; Saúde mental</label><input name="saude_mental" id="ed-me" type="number" min="0" max="10"></div>
+    <div class="field"><label>&#9889; Energia</label><input name="energia" id="ed-en" type="number" min="0" max="10"></div>
+    <div class="field"><label>&#10084; Dor física</label><input name="dor_fisica" id="ed-dor" type="number" min="0" max="10"></div>
+    <div class="field"><label>&#9733; Sono (horas)</label><input name="sono_horas" id="ed-sh" type="number" min="0" max="16" step="0.5"></div>
+    <div class="field"><label>&#9693; Sono qualidade</label><input name="sono_qualidade" id="ed-sq" type="number" min="0" max="10"></div>
+    <div class="field"><label>&#9200; Stress trabalho</label><input name="stress_trabalho" id="ed-st" type="number" min="0" max="10"></div>
+    <div class="field"><label>&#9829; Stress rel.</label><input name="stress_relacionamento" id="ed-sr" type="number" min="0" max="10"></div>
+    <div class="field"><label>&#9749; Álcool</label><input name="alcool" id="ed-al" type="text" placeholder="Nenhum / Pouco / Moderado / Muito"></div>
+    <div class="field"><label>&#10006; Cigarros</label><input name="cigarros" id="ed-ci" type="number" min="0"></div>
+    <div class="field"><label>&#9728; Social</label><input name="desempenho_social" id="ed-so" type="number" min="0" max="10"></div>
+    <div class="field"><label>&#127803; Alimentação (0-10)</label><input name="alimentacao" id="ed-alim" type="number" min="0" max="10"></div>
   </div>
-  <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
-    <div style="font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">\U0001f48a Rem\xe9dios</div>
+  <div class="modal-section">
+    <div class="modal-section-title">&#128138; Relato</div>
+    <div class="field"><textarea name="nota_raw" id="ed-relato" placeholder="Texto do relato (opcional)"></textarea></div>
+  </div>
+  <div class="modal-section">
+    <div class="modal-section-title">&#128138; Remédios</div>
     <div style="display:flex;flex-direction:column;gap:8px" id="ed-remed-list">REMED_MODAL_PLACEHOLDER</div>
     <input type="hidden" name="remedios_tomados" id="ed-remed-json">
   </div>
+  <div class="modal-section">
+    <div class="modal-section-title">&#127381; Contextos</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">CTX_MODAL_PLACEHOLDER</div>
+    <input type="hidden" name="contextos_dia" id="ed-ctx-json">
+  </div>
   <div class="modal-footer">
     <button type="button" class="btn-cancel" onclick="closeModal()">Cancelar</button>
-    <button type="submit" class="btn-save" onclick="buildRemedJson()">Salvar altera\xe7\xf5es</button>
+    <button type="submit" class="btn-save" onclick="buildRemedJson();buildCtxJson()">Salvar alterações</button>
   </div>
   </form>
 </div>
@@ -525,37 +592,14 @@ function remedUpdate(nome,delta){
 </html>"""
 
 
-def _render(body: str, remed_modal_html: str = "") -> str:
+def _render(body: str, remed_modal_html: str = "", ctx_modal_html: str = "") -> str:
     return (
         _HTML_SHELL
         .replace("CSS_PLACEHOLDER", _CSS)
         .replace("BODY_PLACEHOLDER", body)
         .replace("REMED_MODAL_PLACEHOLDER", remed_modal_html)
+        .replace("CTX_MODAL_PLACEHOLDER", ctx_modal_html)
     )
-
-
-def _dim_row(label, val, max_val=10, invert=False):
-    if val is None or val == "":
-        return f'<div class="dim-row"><span class="dim-lbl">{label}</span><span style="color:#4A4A5A;font-size:13px">\u2014</span></div>'
-    v = float(val)
-    pct = int((v / max_val) * 100)
-    color = _score_color(v, invert=invert)
-    return (
-        f'<div class="dim-row">'
-        f'<span class="dim-lbl">{label}</span>'
-        f'<div class="dim-val">'
-        f'<span class="v" style="color:{color}">{val}</span>'
-        f'<div class="dim-bar"><div class="dim-bar-fill" style="width:{pct}%;background:{color}"></div></div>'
-        f'</div></div>'
-    )
-
-
-def _badge(val, invert=False):
-    if val is None or val == "":
-        return '<span style="color:#4A4A5A">\u2014</span>'
-    color = _score_color(float(val), invert=invert)
-    bg = color + "22"
-    return f'<span class="badge" style="background:{bg};color:{color}">{val}</span>'
 
 
 # ---------------------------------------------------------------------------
@@ -572,7 +616,8 @@ async def dashboard_get():
                 SELECT data, dor_fisica, energia, sono_horas, sono_qualidade,
                        saude_mental, stress_trabalho, stress_relacionamento,
                        alcool, exercicio, cigarros, desempenho_social,
-                       nota_raw, nota_sentimento, nota_categorias, remedios_tomados
+                       nota_raw, nota_resumo_ia, nota_sentimento, nota_categorias,
+                       remedios_tomados, contextos_dia, alimentacao
                 FROM checkins WHERE user_id = 1
                 ORDER BY data DESC LIMIT 7
                 """,
@@ -600,33 +645,58 @@ async def dashboard_get():
             remedios_padrao = await conn.fetch(
                 "SELECT DISTINCT ON (nome) id, nome, dose_padrao, tipo FROM remedios WHERE user_id = 1 AND ativo = TRUE ORDER BY nome, id"
             )
+            contextos_lista = await conn.fetch(
+                "SELECT label, ativo FROM contextos_config WHERE user_id = 1 ORDER BY ordem, id"
+            )
     except Exception as e:
         return _render(f'<div class="empty-state"><div class="es-icon">\u26a0</div><div class="es-title">Erro ao carregar</div><div class="es-sub">{e}</div></div>')
 
-    body = ""
-
-    # ---- Header ----
-    from datetime import datetime
     _sp_tz = zoneinfo.ZoneInfo("America/Sao_Paulo")
     _agora_sp = datetime.now(_sp_tz)
     hora_sp = _agora_sp.hour
     hoje = _agora_sp.date()
     saudacao = "Bom dia" if hora_sp < 12 else ("Boa tarde" if hora_sp < 18 else "Boa noite")
-    checkin_btn = '<a class="checkin-btn" href="/checkin-web">+ Check-in</a>'
-    body += f"""
+
+    checkin_hoje = rows[0] if rows and rows[0]["data"] == hoje else None
+    ref = next((r for r in rows if r["saude_mental"] is not None), None)
+
+    # Botão check-in contextual
+    if checkin_hoje:
+        checkin_area = (
+            '<div class="header-right">'
+            '<span class="checkin-done">&#10003; Check-in feito</span>'
+            f'<button class="checkin-edit-btn" onclick="openEdit(this)" '
+            f'data-data="{hoje.isoformat()}" '
+            f'data-dor="{checkin_hoje["dor_fisica"] or ""}" '
+            f'data-en="{checkin_hoje["energia"] or ""}" '
+            f'data-sh="{checkin_hoje["sono_horas"] or ""}" '
+            f'data-sq="{checkin_hoje["sono_qualidade"] or ""}" '
+            f'data-me="{checkin_hoje["saude_mental"] or ""}" '
+            f'data-st="{checkin_hoje["stress_trabalho"] or ""}" '
+            f'data-sr="{checkin_hoje["stress_relacionamento"] or ""}" '
+            f'data-al="{checkin_hoje["alcool"] or ""}" '
+            f'data-ci="{checkin_hoje["cigarros"] or ""}" '
+            f'data-so="{checkin_hoje["desempenho_social"] or ""}" '
+            f'data-alim="{checkin_hoje["alimentacao"] if checkin_hoje["alimentacao"] is not None else ""}" '
+            f'data-relato="{_html_mod.escape(checkin_hoje["nota_raw"] or "")}" '
+            f'data-rj="{_html_mod.escape(_json.dumps(checkin_hoje["remedios_tomados"] if isinstance(checkin_hoje["remedios_tomados"], list) else (_json.loads(checkin_hoje["remedios_tomados"]) if checkin_hoje["remedios_tomados"] else []))  )}" '
+            f'data-ctx="{_html_mod.escape(_json.dumps(checkin_hoje["contextos_dia"] if isinstance(checkin_hoje["contextos_dia"], list) else (_json.loads(checkin_hoje["contextos_dia"]) if checkin_hoje["contextos_dia"] else [])))}"'
+            '>&#9998; Editar</button>'
+            '</div>'
+        )
+    else:
+        checkin_area = '<div class="header-right"><a class="checkin-btn" href="/checkin-web">+ Check-in</a></div>'
+
+    body = f"""
 <div class="header">
   <div class="header-left">
-    <div class="header-left h1">{saudacao}</div>
+    <div style="font-size:14px;font-weight:600;color:var(--text2);letter-spacing:.5px;text-transform:uppercase">{saudacao}</div>
     <div class="greeting">Monitoramento Mental</div>
   </div>
-  {checkin_btn}
+  {checkin_area}
 </div>"""
 
-    # ---- Hero card ----
-    checkin_hoje = rows[0] if rows and rows[0]["data"] == hoje else None
-    ultimo = rows[0] if rows else None
-    # Para o hero, usar o registro mais recente com saúde_mental preenchido
-    ref = next((r for r in rows if r["saude_mental"] is not None), None)
+    # ---- Hero ----
     mental_hoje = ref["saude_mental"] if ref else None
     energia_hoje = ref["energia"] if ref else None
     dor_hoje = ref["dor_fisica"] if ref else None
@@ -668,88 +738,192 @@ async def dashboard_get():
   {f'<div class="hero-meta">{chips}</div>' if chips else ''}
 </div>"""
 
-    # ---- Streak + heatmap (nível 2 na hierarquia) ----
-    s_atual = streak_row["streak_atual"] if streak_row else 0
-    s_max = streak_row["streak_maximo"] if streak_row else 0
-    streak_frase = _streak_frase(s_atual, s_max)
-
-    heat_map = {r["data"]: r["saude_mental"] for r in heat_rows}
-    dots = ""
-    from datetime import timedelta
-    for i in range(29, -1, -1):
-        d = hoje - timedelta(days=i)
-        mental_val = heat_map.get(d)
-        color = _dot_color(mental_val)
-        title = d.strftime("%d/%m") + (f" \u2014 {mental_val}" if mental_val is not None else " \u2014 sem dado")
-        dots += f'<div class="dot" style="background:{color}" title="{title}"></div>'
-
-    # ---- Dimension cards ----
     if not rows:
+        s_atual = streak_row["streak_atual"] if streak_row else 0
+        s_max = streak_row["streak_maximo"] if streak_row else 0
         body += f"""
 <div class="sec-label">Consist\xeancia</div>
 <div class="streak-card">
   <div class="streak-row">
     <div class="streak-num">\U0001f525 {s_atual}</div>
     <div class="streak-info">
-      <div class="streak-frase">{streak_frase}</div>
+      <div class="streak-frase">{_streak_frase(s_atual, s_max)}</div>
       <div class="streak-max">M\xe1ximo: {s_max} dias</div>
     </div>
   </div>
-  <div class="heatmap">{dots}</div>
-</div>"""
-        body += """
-<div class="sec-label">Esta semana</div>
+</div>
 <div style="margin:0 24px">
   <div class="empty-state">
     <div class="es-icon">\U0001f4cb</div>
     <div class="es-title">Nenhum registro ainda</div>
-    <div class="es-sub">Seus dados v\xe3o aparecer aqui depois do primeiro check-in.<br>Use o bot\xe3o acima ou envie /checkin no WhatsApp.</div>
+    <div class="es-sub">Seus dados v\xe3o aparecer aqui depois do primeiro check-in.</div>
+  </div>
+</div>"""
+        return _render(body)
+
+    # =========================================================================
+    # Dashboard com dados
+    # =========================================================================
+    m = media
+
+    # ---- Relato (posição nobre — logo após o hero) ----
+    # Buscar o relato mais recente com dados (não só de hoje)
+    ref_relato = next((r for r in rows if r["nota_raw"]), None)
+    body += '<div class="sec-label">Relato</div>'
+
+    if ref_relato and ref_relato["nota_raw"]:
+        nota_raw = ref_relato["nota_raw"]
+        nota_resumo = ref_relato["nota_resumo_ia"] or ""
+        nota_sent = ref_relato["nota_sentimento"] or ""
+        nota_cats = ref_relato["nota_categorias"] or []
+        if isinstance(nota_cats, str):
+            try:
+                nota_cats = _json.loads(nota_cats)
+            except Exception:
+                nota_cats = []
+
+        try:
+            relato_date_display = ref_relato["data"].strftime("%-d de %B") if ref_relato["data"] != hoje else "hoje"
+        except ValueError:
+            relato_date_display = ref_relato["data"].strftime("%d de %B") if ref_relato["data"] != hoje else "hoje"
+
+        badge_html = _sent_badge(nota_sent)
+        resumo_display = nota_resumo if nota_resumo else (nota_raw[:90] + ("…" if len(nota_raw) > 90 else ""))
+
+        cats_html = ""
+        if nota_cats:
+            cats_html = '<div class="relato-cats">' + "".join(
+                f'<span class="relato-tag">{_html_mod.escape(str(c))}</span>' for c in nota_cats
+            ) + '</div>'
+
+        ver_inteiro = ""
+        if nota_raw and len(nota_raw) > 5:
+            ver_inteiro = (
+                f'<details class="relato-expand">'
+                f'<summary>ver relato completo</summary>'
+                f'<div class="relato-raw-text">{_html_mod.escape(nota_raw)}</div>'
+                f'</details>'
+            )
+
+        # Div oculta para armazenar raw para edição
+        raw_hidden = f'<div id="relato-saved-raw" data-raw="{_html_mod.escape(nota_raw)}" style="display:none"></div>'
+
+        body += f"""
+<div class="relato-card">
+  {raw_hidden}
+  <div id="relato-saved">
+    <div class="relato-header">
+      <span class="relato-title">\U0001f4dd {relato_date_display}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        {badge_html}
+        <button class="relato-edit-btn" onclick="mostrarFormRelato()">\u270f editar</button>
+      </div>
+    </div>
+    <div class="relato-resumo">{_html_mod.escape(resumo_display)}</div>
+    {cats_html}
+    {ver_inteiro}
+  </div>
+  <div id="relato-form" style="display:none">
+    <div class="relato-prompt">Editar relato:</div>
+    <div id="relato-actions" class="relato-actions">
+      <button class="relato-btn" onclick="relatoTexto()">\u270f\ufe0f Texto</button>
+      <button class="relato-btn relato-btn-audio" onclick="relatoAudio()">\U0001f3a4 \xc1udio</button>
+    </div>
+    <div id="relato-text-area" style="display:none">
+      <textarea id="relato-input" placeholder="Ex: ansiedade depois da reuni\xe3o..."></textarea>
+      <button class="relato-submit" onclick="enviarRelato()">Salvar</button>
+    </div>
+    <div id="relato-audio-area" style="display:none">
+      <div class="relato-audio-status" id="audio-status">Pronto para gravar.</div>
+      <div class="relato-actions">
+        <button class="relato-btn relato-btn-rec" id="btn-rec" onclick="toggleGravacao()">\u23fa Iniciar grava\xe7\xe3o</button>
+        <button class="relato-btn" id="btn-send-audio" style="display:none" onclick="enviarAudio()">Enviar</button>
+      </div>
+    </div>
   </div>
 </div>"""
     else:
-        m = media
-        # Fallback remédios padrão
-        _remed_padrao = [
-            {"nome": r["nome"], "qtd": float(r["dose_padrao"] or 1), "tomado": True}
-            for r in remedios_padrao
-        ]
+        body += f"""
+<div class="relato-card">
+  <div id="relato-saved" style="display:none"></div>
+  <div id="relato-form">
+    <div class="relato-prompt">Algo pontual a registrar? Gatilhos, momentos, observa\xe7\xf5es.</div>
+    <div id="relato-actions" class="relato-actions">
+      <button class="relato-btn" onclick="relatoTexto()">\u270f\ufe0f Texto</button>
+      <button class="relato-btn relato-btn-audio" onclick="relatoAudio()">\U0001f3a4 \xc1udio</button>
+    </div>
+    <div id="relato-text-area" style="display:none">
+      <textarea id="relato-input" placeholder="Ex: ansiedade depois da reuni\xe3o..."></textarea>
+      <button class="relato-submit" onclick="enviarRelato()">Salvar</button>
+    </div>
+    <div id="relato-audio-area" style="display:none">
+      <div class="relato-audio-status" id="audio-status">Pronto para gravar.</div>
+      <div class="relato-actions">
+        <button class="relato-btn relato-btn-rec" id="btn-rec" onclick="toggleGravacao()">\u23fa Iniciar grava\xe7\xe3o</button>
+        <button class="relato-btn" id="btn-send-audio" style="display:none" onclick="enviarAudio()">Enviar</button>
+      </div>
+    </div>
+  </div>
+</div>"""
 
-        # ---- Remédios prioritários (Rivotril, Zolpidem) ----
-        REMED_PRIORITARIOS = {"rivotril", "zolpidem"}
-        hist_doses = {}  # nome -> lista de (data_str, qtd) mais recente primeiro
-        for r in rows:
-            rj = r["remedios_tomados"]
-            data_str_r = r["data"].strftime("%d/%m")
+    # ---- Remédios prioritários ----
+    REMED_PRIORITARIOS = {"rivotril", "zolpidem"}
+    hist_doses = {}
+    _remed_padrao = [
+        {"nome": r["nome"], "qtd": float(r["dose_padrao"] or 1), "tomado": True}
+        for r in remedios_padrao
+    ]
+    for r in rows:
+        rj = r["remedios_tomados"]
+        data_str_r = r["data"].strftime("%d/%m")
+        try:
+            itens = (rj if isinstance(rj, list) else _json.loads(rj)) if rj else []
+            for item in itens:
+                if not item.get("tomado"):
+                    continue
+                nome = item["nome"]
+                qtd = item.get("qtd", 1)
+                if nome.lower() in REMED_PRIORITARIOS:
+                    if nome not in hist_doses:
+                        hist_doses[nome] = []
+                    hist_doses[nome].append((data_str_r, qtd))
+        except Exception:
+            pass
+
+    body += '<div class="sec-label">Rem\xe9dios</div>'
+    remed_prio_html = ""
+    for nome_prio in ["Rivotril", "Zolpidem"]:
+        doses = hist_doses.get(nome_prio, [])
+        # dose de hoje: buscar do check-in de hoje (não fallback)
+        dose_hoje_val = None
+        if checkin_hoje and checkin_hoje["remedios_tomados"]:
             try:
-                itens = (rj if isinstance(rj, list) else _json.loads(rj)) if rj else _remed_padrao
-                for item in itens:
-                    if not item.get("tomado"):
-                        continue
-                    nome = item["nome"]
-                    qtd = item.get("qtd", 1)
-                    if nome.lower() in REMED_PRIORITARIOS:
-                        if nome not in hist_doses:
-                            hist_doses[nome] = []
-                        hist_doses[nome].append((data_str_r, qtd))
+                rj_hoje = checkin_hoje["remedios_tomados"]
+                arr_hoje = (rj_hoje if isinstance(rj_hoje, list) else _json.loads(rj_hoje)) if rj_hoje else []
+                for item in arr_hoje:
+                    if item.get("nome", "").lower() == nome_prio.lower() and item.get("tomado"):
+                        dose_hoje_val = item.get("qtd", 0)
+                        break
             except Exception:
                 pass
+        elif doses:
+            dose_hoje_val = doses[0][1]
 
-        remed_prio_html = ""
-        for nome_prio in ["Rivotril", "Zolpidem"]:
-            doses = hist_doses.get(nome_prio, [])
-            # doses está em ordem: mais recente primeiro (mesma ordem de rows DESC)
-            dose_hoje_val = doses[0][1] if doses else None
-            dose_display = f'{dose_hoje_val:g}' if dose_hoje_val is not None else "\u2014"
-            max_dose = max((d[1] for d in doses), default=1) or 1
-            barras = ""
-            # mostrar em ordem cronológica (mais antigo → mais recente)
-            doses_crono = list(reversed(doses[:7]))
-            for i, (ds_r, qtd) in enumerate(doses_crono):
-                h = max(4, int((qtd / max_dose) * 40))
-                cls = "remed-hist-bar today" if i == len(doses_crono) - 1 else "remed-hist-bar"
-                barras += f'<div style="flex:1;display:flex;flex-direction:column;align-items:center"><div class="{cls}" style="height:{h}px;width:100%"></div><div class="remed-hist-label">{ds_r}</div></div>'
-            hist_inner = barras if barras else '<span style="font-size:12px;color:var(--text3)">sem hist\xf3rico</span>'
-            remed_prio_html += f"""
+        dose_display = f'{dose_hoje_val:g}' if dose_hoje_val is not None else "\u2014"
+
+        # baseline do remédio
+        baseline = next((float(r["dose_padrao"] or 1) for r in remedios_padrao if r["nome"].lower() == nome_prio.lower()), 1)
+        max_dose = max((d[1] for d in doses), default=baseline) or 1
+
+        barras = ""
+        doses_crono = list(reversed(doses[:7]))
+        for i, (ds_r, qtd) in enumerate(doses_crono):
+            h = max(4, int((qtd / max_dose) * 40))
+            cls = "remed-hist-bar today" if i == len(doses_crono) - 1 else "remed-hist-bar"
+            barras += f'<div style="flex:1;display:flex;flex-direction:column;align-items:center"><div class="{cls}" style="height:{h}px;width:100%"></div><div class="remed-hist-label">{ds_r}</div></div>'
+        hist_inner = barras if barras else '<span style="font-size:12px;color:var(--text3)">sem hist\xf3rico</span>'
+
+        remed_prio_html += f"""
 <div class="remed-priority-card">
   <div class="remed-priority-name">{nome_prio}</div>
   <div style="display:flex;align-items:center;justify-content:space-between">
@@ -760,55 +934,81 @@ async def dashboard_get():
     </div>
   </div>
   <div class="remed-priority-hist">{hist_inner}</div>
+  <div class="remed-baseline">padr\xe3o: {baseline:g} comp.</div>
 </div>"""
 
-        # ---- Streak + heatmap (2º na hierarquia) ----
-        body += f"""
-<div class="sec-label">Consist\xeancia</div>
-<div class="streak-card">
-  <div class="streak-row">
-    <div class="streak-num">\U0001f525 {s_atual}</div>
-    <div class="streak-info">
-      <div class="streak-frase">{streak_frase}</div>
-      <div class="streak-max">M\xe1ximo: {s_max} dias</div>
-    </div>
-  </div>
-  <div class="heatmap">{dots}</div>
-</div>"""
+    body += f'<div class="remed-priority-grid">{remed_prio_html}</div>'
 
-        body += '<div class="sec-label">Rem\xe9dios</div>'
-        body += f'<div class="remed-priority-grid">{remed_prio_html}</div>'
+    secundarios = [r for r in _remed_padrao if r["nome"].lower() not in REMED_PRIORITARIOS]
+    if secundarios:
+        sec_items = "".join(f'<span class="remed-sec-item">{_html_mod.escape(s["nome"])}</span>' for s in secundarios)
+        body += f'<div class="remed-sec"><span class="remed-sec-label">Outros</span>{sec_items}</div>'
 
-        # Remédios secundários compactos
-        secundarios = [r for r in _remed_padrao if r["nome"].lower() not in REMED_PRIORITARIOS]
-        if secundarios:
-            sec_items = "".join(f'<span class="remed-sec-item">{s["nome"]}</span>' for s in secundarios)
-            body += f'<div class="remed-sec" style="margin-top:8px"><span class="remed-sec-label">Outros</span>{sec_items}</div>'
+    # ---- Exercício ----
+    EX_CORES = {"Nenhum": "#2A2A38", "Leve": "#FCD34D", "Moderado": "#86EFAC", "Intenso": "#A78BFA"}
+    EX_ALTURA = {"Nenhum": 4, "Leve": 16, "Moderado": 28, "Intenso": 40}
+    ex_html = ""
+    for r in list(reversed(rows))[-7:]:
+        ex_val = r["exercicio"] or "Nenhum"
+        cor = EX_CORES.get(ex_val, "#2A2A38")
+        altura = EX_ALTURA.get(ex_val, 4)
+        ds_ex = r["data"].strftime("%d/%m")
+        ex_html += f'<div class="ex-day"><div class="ex-bar" style="height:{altura}px;background:{cor}"></div><div class="ex-day-lbl">{ds_ex}</div><div class="ex-intensidade">{ex_val}</div></div>'
 
-        # ---- Exercício com destaque ----
-        EX_CORES = {"Nenhum": "#2A2A38", "Leve": "#FCD34D", "Moderado": "#86EFAC", "Intenso": "#A78BFA"}
-        EX_ALTURA = {"Nenhum": 4, "Leve": 16, "Moderado": 28, "Intenso": 40}
-        ex_html = ""
-        for r in list(reversed(rows))[-7:]:
-            ex_val = r["exercicio"] or "Nenhum"
-            cor = EX_CORES.get(ex_val, "#2A2A38")
-            altura = EX_ALTURA.get(ex_val, 4)
-            ds_ex = r["data"].strftime("%d/%m")
-            ex_html += f'<div class="ex-day"><div class="ex-bar" style="height:{altura}px;background:{cor}"></div><div class="ex-day-lbl">{ds_ex}</div><div class="ex-intensidade">{ex_val}</div></div>'
-
-        body += f"""
+    body += f"""
 <div class="sec-label">Exerc\xedcio</div>
 <div class="ex-card">
   <div class="ex-title">Intensidade \u2014 7 dias</div>
   <div class="ex-week">{ex_html}</div>
 </div>"""
 
-        # ---- Dimension cards (média semana) ----
-        alcool_vals = [r["alcool"] for r in rows if r["alcool"]]
-        alcool_moda = max(set(alcool_vals), key=alcool_vals.count) if alcool_vals else None
-        alcool_display = alcool_moda or "\u2014"
+    # ---- Contextos do dia ----
+    ctx_hoje = []
+    if checkin_hoje and checkin_hoje["contextos_dia"]:
+        try:
+            cd = checkin_hoje["contextos_dia"]
+            ctx_hoje = (cd if isinstance(cd, list) else _json.loads(cd)) if cd else []
+        except Exception:
+            ctx_hoje = []
 
+    ctx_ativos = [c["label"] for c in contextos_lista if c["ativo"]]
+    if ctx_ativos:
+        ctx_chips_html = ""
+        for lbl in ctx_ativos:
+            is_active = lbl in ctx_hoje
+            cls = "ctx-chip active" if is_active else "ctx-chip"
+            ctx_chips_html += f'<button class="{cls}" onclick="toggleContexto(this, {_json.dumps(lbl)})">{_html_mod.escape(lbl)}</button>'
         body += f"""
+<div class="sec-label">Contextos do dia</div>
+<div class="ctx-wrap">
+  <div class="ctx-grid">{ctx_chips_html}</div>
+  <a href="/dashboard/contextos-editor" class="ctx-manage">+ gerenciar lista</a>
+</div>"""
+
+    # ---- Alimentação ----
+    alim_hoje = checkin_hoje["alimentacao"] if checkin_hoje and checkin_hoje["alimentacao"] is not None else None
+    alim_val = alim_hoje if alim_hoje is not None else 5
+    alim_lbl = _alim_label(alim_hoje)
+    body += f"""
+<div class="sec-label">Alimenta\xe7\xe3o</div>
+<div class="alim-card">
+  <div class="alim-labels"><span>Besteira</span><span>Saud\xe1vel</span></div>
+  <div class="alim-row">
+    <input type="range" class="alim-slider" min="0" max="10" value="{alim_val}"
+           oninput="alimInput(this.value)" style="flex:1">
+    <div style="text-align:center;min-width:52px">
+      <div class="alim-val" id="alim-val-display">{alim_hoje if alim_hoje is not None else "—"}</div>
+      <div class="alim-label-val" id="alim-label-display">{alim_lbl if alim_hoje is not None else ""}</div>
+    </div>
+  </div>
+</div>"""
+
+    # ---- Médias da semana ----
+    alcool_vals = [r["alcool"] for r in rows if r["alcool"]]
+    alcool_moda = max(set(alcool_vals), key=alcool_vals.count) if alcool_vals else None
+    alcool_display = alcool_moda or "\u2014"
+
+    body += f"""
 <div class="sec-label">M\xe9dia da semana</div>
 <div class="dim-grid">
   <div class="dim-card">
@@ -835,81 +1035,77 @@ async def dashboard_get():
   </div>
 </div>"""
 
-        # ---- Histórico diário compacto ----
-        body += '<div class="sec-label" style="padding-top:16px">Hist\xf3rico</div>'
-        body += '<div class="hist-compact">'
-        for r in rows:
-            di = r["data"].isoformat()
-            ds = r["data"].strftime("%d/%m")
-            me = r["saude_mental"]; en = r["energia"]; dor = r["dor_fisica"]
-            sh = r["sono_horas"]; al = r["alcool"] or ""; ex = r["exercicio"] or ""
-            sq = r["sono_qualidade"]; st = r["stress_trabalho"]; sr = r["stress_relacionamento"]
-            so = r["desempenho_social"]; ci = r["cigarros"]
-            rj_raw = r["remedios_tomados"]
-            rj_str = _json.dumps(rj_raw if isinstance(rj_raw, list) else (_json.loads(rj_raw) if rj_raw else [])).replace("'", "\\'")
-            me_c = _score_color(me) if me is not None else "#4A4A5A"
-            chips_h = ""
-            if me is not None: chips_h += f'<span class="hist-chip" style="color:{me_c}">mental {me}</span>'
-            if en is not None: chips_h += f'<span class="hist-chip">energia {en}</span>'
-            if sh is not None: chips_h += f'<span class="hist-chip">sono {sh}h</span>'
-            if dor is not None: chips_h += f'<span class="hist-chip">dor {dor}</span>'
-            if al: chips_h += f'<span class="hist-chip">{al}</span>'
-            if ex and ex != "Nenhum": chips_h += f'<span class="hist-chip">{ex}</span>'
-            body += (
-                f'<div class="hist-row">'
-                f'<span class="hist-date">{ds}</span>'
-                f'<div class="hist-vals">{chips_h}</div>'
-                f'<div class="hist-acts">'
-                f'<button class="act-btn" style="padding:4px 8px;font-size:11px" onclick="openEdit(\'{di}\',\'{dor or ""}\',\'{en or ""}\',\'{sh or ""}\',\'{sq or ""}\',\'{me or ""}\',\'{st or ""}\',\'{sr or ""}\',\'{al}\',\'{ci or ""}\',\'{so or ""}\',\'{rj_str}\')">\u270f</button>'
-                f'<button class="act-btn del" style="padding:4px 8px;font-size:11px" onclick="delDay(\'{di}\')">\xd7</button>'
-                f'</div></div>'
-            )
-        body += '</div>'
+    # ---- Streak + heatmap ----
+    s_atual = streak_row["streak_atual"] if streak_row else 0
+    s_max = streak_row["streak_maximo"] if streak_row else 0
+    heat_map = {r["data"]: r["saude_mental"] for r in heat_rows}
+    dots = ""
+    for i in range(29, -1, -1):
+        d = hoje - timedelta(days=i)
+        mental_val = heat_map.get(d)
+        color = _dot_color(mental_val)
+        title = d.strftime("%d/%m") + (f" \u2014 {mental_val}" if mental_val is not None else " \u2014 sem dado")
+        dots += f'<div class="dot" style="background:{color}" title="{title}"></div>'
 
-        # ---- Relato pontual (baixa hierarquia) ----
-        nota_raw_hoje = checkin_hoje["nota_raw"] if checkin_hoje and checkin_hoje["nota_raw"] else ""
-        nota_sent = checkin_hoje["nota_sentimento"] if checkin_hoje else ""
-        nota_salva_html = ""
-        if nota_raw_hoje:
-            badge = _sent_badge(nota_sent) + " " if nota_sent else ""
-            resumo = nota_raw_hoje[:90] + ("…" if len(nota_raw_hoje) > 90 else "")
-            ver_inteiro = (
-                f'<details style="margin-top:6px">'
-                f'<summary style="font-size:11px;color:var(--text3);cursor:pointer">ver inteiro</summary>'
-                f'<div style="margin-top:8px;font-size:13px;color:var(--text2);line-height:1.6">{nota_raw_hoje}</div>'
-                f'</details>'
-            ) if len(nota_raw_hoje) > 90 else ""
-            nota_salva_html = (
-                f'<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">'
-                f'<div style="font-size:13px;color:var(--text2);line-height:1.6">{badge}{resumo}</div>'
-                f'{ver_inteiro}'
-                f'</div>'
-            )
-        body += f"""
-<div class="sec-label" style="padding-top:8px">Relato</div>
-<div class="relato-wrap">
-  <div class="relato-card">
-    <div class="relato-prompt" style="font-size:13px;color:var(--text2);font-weight:400">Algo pontual a registrar? Gatilhos, momentos, observa\xe7\xf5es.</div>
-    <div id="relato-actions" class="relato-actions" style="margin-top:12px">
-      <button class="relato-btn" onclick="relatoTexto()">\u270f\ufe0f Texto</button>
-      <button class="relato-btn relato-btn-audio" onclick="relatoAudio()">\U0001f3a4 \xc1udio</button>
+    body += f"""
+<div class="sec-label">Consist\xeancia</div>
+<div class="streak-card">
+  <div class="streak-row">
+    <div class="streak-num">\U0001f525 {s_atual}</div>
+    <div class="streak-info">
+      <div class="streak-frase">{_streak_frase(s_atual, s_max)}</div>
+      <div class="streak-max">M\xe1ximo: {s_max} dias</div>
     </div>
-    <div id="relato-text-area" style="display:none">
-      <textarea id="relato-input" placeholder="Ex: ansiedade depois da reuni\xe3o, dor nas costas \xe0 tarde..."></textarea>
-      <button class="relato-submit" onclick="enviarRelato()">Salvar</button>
-    </div>
-    <div id="relato-audio-area" style="display:none">
-      <div class="relato-audio-status" id="audio-status">Pronto para gravar.</div>
-      <div class="relato-actions">
-        <button class="relato-btn relato-btn-rec" id="btn-rec" onclick="toggleGravacao()">\u23fa Iniciar grava\xe7\xe3o</button>
-        <button class="relato-btn" id="btn-send-audio" style="display:none" onclick="enviarAudio()">Enviar</button>
-      </div>
-    </div>
-    {nota_salva_html}
   </div>
+  <div class="heatmap">{dots}</div>
 </div>"""
 
-    # ---- HTML dos remédios no modal de edição ----
+    # ---- Histórico compacto (editável via data-* attrs) ----
+    body += '<div class="sec-label" style="padding-top:16px">Hist\xf3rico</div>'
+    body += '<div class="hist-compact">'
+    for r in rows:
+        di = r["data"].isoformat()
+        ds = r["data"].strftime("%d/%m")
+        me = r["saude_mental"]; en = r["energia"]; dor = r["dor_fisica"]
+        sh = r["sono_horas"]; al = r["alcool"] or ""; ex = r["exercicio"] or ""
+        sq = r["sono_qualidade"]; st = r["stress_trabalho"]; sr = r["stress_relacionamento"]
+        so = r["desempenho_social"]; ci = r["cigarros"]
+        alim = r["alimentacao"]
+        nota_raw_h = r["nota_raw"] or ""
+        rj_raw = r["remedios_tomados"]
+        ctx_raw = r["contextos_dia"]
+        # Usar html.escape para os atributos data-* (seguro para qualquer conteúdo)
+        rj_esc = _html_mod.escape(_json.dumps(rj_raw if isinstance(rj_raw, list) else (_json.loads(rj_raw) if rj_raw else [])))
+        ctx_esc = _html_mod.escape(_json.dumps(ctx_raw if isinstance(ctx_raw, list) else (_json.loads(ctx_raw) if ctx_raw else [])))
+        nota_esc = _html_mod.escape(nota_raw_h)
+        me_c = _score_color(me) if me is not None else "#4A4A5A"
+        chips_h = ""
+        if me is not None: chips_h += f'<span class="hist-chip" style="color:{me_c}">mental {me}</span>'
+        if en is not None: chips_h += f'<span class="hist-chip">energia {en}</span>'
+        if sh is not None: chips_h += f'<span class="hist-chip">sono {sh}h</span>'
+        if dor is not None: chips_h += f'<span class="hist-chip">dor {dor}</span>'
+        if al: chips_h += f'<span class="hist-chip">{_html_mod.escape(al)}</span>'
+        if ex and ex != "Nenhum": chips_h += f'<span class="hist-chip">{_html_mod.escape(ex)}</span>'
+        if alim is not None: chips_h += f'<span class="hist-chip">alim {alim}</span>'
+        body += (
+            f'<div class="hist-row">'
+            f'<span class="hist-date">{ds}</span>'
+            f'<div class="hist-vals">{chips_h}</div>'
+            f'<div class="hist-acts">'
+            f'<button class="act-btn" style="padding:4px 8px;font-size:11px" '
+            f'onclick="openEdit(this)" '
+            f'data-data="{di}" data-dor="{dor or ""}" data-en="{en or ""}" '
+            f'data-sh="{sh or ""}" data-sq="{sq or ""}" data-me="{me or ""}" '
+            f'data-st="{st or ""}" data-sr="{sr or ""}" data-al="{_html_mod.escape(al)}" '
+            f'data-ci="{ci or ""}" data-so="{so or ""}" '
+            f'data-alim="{alim if alim is not None else ""}" '
+            f'data-relato="{nota_esc}" data-rj="{rj_esc}" data-ctx="{ctx_esc}">\u270f</button>'
+            f'<button class="act-btn del" style="padding:4px 8px;font-size:11px" onclick="delDay(\'{di}\')">\xd7</button>'
+            f'</div></div>'
+        )
+    body += '</div>'
+
+    # ---- HTML do modal: remédios ----
     remed_modal_html = ""
     for rp in remedios_padrao:
         nome = rp["nome"]
@@ -918,16 +1114,28 @@ async def dashboard_get():
         remed_modal_html += (
             f'<div style="display:flex;align-items:center;justify-content:space-between;'
             f'background:var(--surface2);border-radius:10px;padding:8px 12px">'
-            f'<span style="font-size:13px;font-weight:600;color:var(--text)">{nome}</span>'
+            f'<span style="font-size:13px;font-weight:600;color:var(--text)">{_html_mod.escape(nome)}</span>'
             f'<div style="display:flex;align-items:center;gap:8px">'
             f'<span style="font-size:11px;color:var(--text3)">qtd</span>'
-            f'<input class="ed-rem-qtd" data-nome="{nome}" type="number" min="0" max="20" step="{step}" value="{dp:g}"'
+            f'<input class="ed-rem-qtd" data-nome="{_html_mod.escape(nome)}" type="number" min="0" max="20" step="{step}" value="0"'
             f' style="width:60px;background:var(--surface);border:1px solid var(--border);border-radius:8px;'
             f'padding:6px 8px;color:var(--text);font-size:14px;font-weight:700;text-align:center;outline:none">'
             f'</div></div>'
         )
 
-    return _render(body, remed_modal_html)
+    # ---- HTML do modal: contextos ----
+    ctx_modal_html = ""
+    for c in contextos_lista:
+        lbl = c["label"]
+        ctx_modal_html += (
+            f'<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer">'
+            f'<input type="checkbox" class="ed-ctx-check" value="{_html_mod.escape(lbl)}" '
+            f'style="accent-color:var(--primary)">'
+            f'{_html_mod.escape(lbl)}'
+            f'</label>'
+        )
+
+    return _render(body, remed_modal_html, ctx_modal_html)
 
 
 # ---------------------------------------------------------------------------
@@ -938,7 +1146,6 @@ async def dashboard_get():
 async def dashboard_relato(texto: str = Form(...)):
     try:
         pool = get_pool()
-        # Salva o texto imediatamente, sem depender da OpenAI
         async with pool.acquire() as conn:
             await conn.execute(
                 """INSERT INTO checkins (user_id, data, nota_raw)
@@ -946,17 +1153,17 @@ async def dashboard_relato(texto: str = Form(...)):
                    ON CONFLICT (user_id, data) DO UPDATE SET nota_raw=$1""",
                 texto,
             )
-        # Tenta análise em background (não bloqueia, não quebra se falhar)
         try:
             analysis = await _process_nota_completa(texto)
             if analysis:
                 sentimento = analysis.get("sentimento") or ""
                 categorias = _json.dumps(analysis.get("categorias") or [], ensure_ascii=False)
+                resumo_ia = analysis.get("resumo") or ""
                 async with pool.acquire() as conn:
                     await conn.execute(
-                        "UPDATE checkins SET nota_sentimento=$1, nota_categorias=$2::jsonb "
+                        "UPDATE checkins SET nota_sentimento=$1, nota_categorias=$2::jsonb, nota_resumo_ia=$3 "
                         "WHERE user_id=1 AND data=(NOW() AT TIME ZONE 'America/Sao_Paulo')::date",
-                        sentimento, categorias,
+                        sentimento, categorias, resumo_ia,
                     )
         except Exception:
             pass
@@ -987,15 +1194,17 @@ async def dashboard_relato_audio(audio: UploadFile = File(...)):
         return JSONResponse({"error": str(e)}, status_code=500)
     pool = get_pool()
     analysis = await _process_nota_completa(texto)
+    resumo_ia = analysis.get("resumo") or ""
     async with pool.acquire() as conn:
         await conn.execute(
-            """INSERT INTO checkins (user_id, data, nota_raw, nota_sentimento, nota_categorias)
-               VALUES (1, (NOW() AT TIME ZONE 'America/Sao_Paulo')::date, $1, $2, $3::jsonb)
+            """INSERT INTO checkins (user_id, data, nota_raw, nota_sentimento, nota_categorias, nota_resumo_ia)
+               VALUES (1, (NOW() AT TIME ZONE 'America/Sao_Paulo')::date, $1, $2, $3::jsonb, $4)
                ON CONFLICT (user_id, data) DO UPDATE SET
-               nota_raw=$1, nota_sentimento=$2, nota_categorias=$3::jsonb""",
+               nota_raw=$1, nota_sentimento=$2, nota_categorias=$3::jsonb, nota_resumo_ia=$4""",
             texto,
             analysis.get("sentimento", ""),
             _json.dumps(analysis.get("categorias", []), ensure_ascii=False),
+            resumo_ia,
         )
     return JSONResponse({"ok": True})
 
@@ -1017,7 +1226,10 @@ async def dashboard_editar(
     alcool: str = Form(default=""),
     cigarros: str = Form(default=""),
     desempenho_social: str = Form(default=""),
+    alimentacao: str = Form(default=""),
+    nota_raw: str = Form(default=""),
     remedios_tomados: str = Form(default=""),
+    contextos_dia: str = Form(default=""),
 ):
     def _int(v): return int(v) if str(v).strip() else None
     def _float(v): return float(v) if str(v).strip() else None
@@ -1027,6 +1239,11 @@ async def dashboard_editar(
     except Exception:
         remed_json = None
 
+    try:
+        ctx_json = _json.dumps(_json.loads(contextos_dia), ensure_ascii=False) if contextos_dia.strip() else "[]"
+    except Exception:
+        ctx_json = "[]"
+
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
@@ -1035,20 +1252,23 @@ async def dashboard_editar(
               dor_fisica=$2, energia=$3, sono_horas=$4, sono_qualidade=$5,
               saude_mental=$6, stress_trabalho=$7, stress_relacionamento=$8,
               alcool=$9, cigarros=$10, desempenho_social=$11,
-              remedios_tomados=COALESCE($12::jsonb, remedios_tomados)
+              remedios_tomados=COALESCE($12::jsonb, remedios_tomados),
+              alimentacao=$13,
+              nota_raw=CASE WHEN $14 != '' THEN $14 ELSE nota_raw END,
+              contextos_dia=$15::jsonb
             WHERE user_id=1 AND data=$1
             """,
             date.fromisoformat(data),
             _int(dor_fisica), _int(energia), _float(sono_horas), _int(sono_qualidade),
             _int(saude_mental), _int(stress_trabalho), _int(stress_relacionamento),
             alcool.strip() or None, _int(cigarros), _int(desempenho_social),
-            remed_json,
+            remed_json, _int(alimentacao), nota_raw.strip() or "", ctx_json,
         )
     return RedirectResponse("/dashboard", status_code=303)
 
 
 # ---------------------------------------------------------------------------
-# POST /dashboard/remover
+# POST /dashboard/remed-atualizar
 # ---------------------------------------------------------------------------
 
 @router.post("/dashboard/remed-atualizar")
@@ -1087,6 +1307,148 @@ async def dashboard_remed_atualizar(nome: str = Form(...), delta: float = Form(.
             )
     return JSONResponse({"ok": True})
 
+
+# ---------------------------------------------------------------------------
+# POST /dashboard/contexto-toggle
+# ---------------------------------------------------------------------------
+
+@router.post("/dashboard/contexto-toggle")
+async def dashboard_contexto_toggle(label: str = Form(...)):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT contextos_dia FROM checkins WHERE user_id=1 AND data=(NOW() AT TIME ZONE 'America/Sao_Paulo')::date"
+        )
+        if row is None:
+            ctx = [label]
+            await conn.execute(
+                "INSERT INTO checkins (user_id, data, contextos_dia) VALUES (1, (NOW() AT TIME ZONE 'America/Sao_Paulo')::date, $1::jsonb) ON CONFLICT (user_id, data) DO UPDATE SET contextos_dia=$1::jsonb",
+                _json.dumps(ctx),
+            )
+        else:
+            cd = row["contextos_dia"]
+            try:
+                ctx = (cd if isinstance(cd, list) else _json.loads(cd)) if cd else []
+            except Exception:
+                ctx = []
+            if label in ctx:
+                ctx.remove(label)
+            else:
+                ctx.append(label)
+            await conn.execute(
+                "UPDATE checkins SET contextos_dia=$1::jsonb WHERE user_id=1 AND data=(NOW() AT TIME ZONE 'America/Sao_Paulo')::date",
+                _json.dumps(ctx),
+            )
+    return JSONResponse({"ok": True, "contextos": ctx})
+
+
+# ---------------------------------------------------------------------------
+# POST /dashboard/alimentacao-atualizar
+# ---------------------------------------------------------------------------
+
+@router.post("/dashboard/alimentacao-atualizar")
+async def dashboard_alimentacao_atualizar(valor: int = Form(...)):
+    valor = max(0, min(10, valor))
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO checkins (user_id, data, alimentacao)
+               VALUES (1, (NOW() AT TIME ZONE 'America/Sao_Paulo')::date, $1)
+               ON CONFLICT (user_id, data) DO UPDATE SET alimentacao=$1""",
+            valor,
+        )
+    return JSONResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# GET/POST /dashboard/contextos-editor
+# ---------------------------------------------------------------------------
+
+@router.get("/dashboard/contextos-editor", response_class=HTMLResponse)
+async def contextos_editor_get():
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, label, ativo, ordem FROM contextos_config WHERE user_id=1 ORDER BY ordem, id"
+        )
+
+    items_html = ""
+    for r in rows:
+        cor = "var(--text)" if r["ativo"] else "var(--text3)"
+        btn_lbl = "desativar" if r["ativo"] else "reativar"
+        btn_cls = "editor-btn desat" if r["ativo"] else "editor-btn"
+        items_html += (
+            f'<div class="editor-item">'
+            f'<span class="editor-label" style="color:{cor}">{_html_mod.escape(r["label"])}</span>'
+            f'<form method="post" action="/dashboard/contextos-editor/toggle" style="display:inline">'
+            f'<input type="hidden" name="id" value="{r["id"]}">'
+            f'<button type="submit" class="{btn_cls}">{btn_lbl}</button>'
+            f'</form>'
+            f'</div>'
+        )
+
+    page = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gerenciar contextos</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{{--bg:#0F0F14;--surface:#18181F;--surface2:#22222C;--border:#2A2A38;--primary:#A78BFA;--text:#F1F0F5;--text2:#94A3B8;--text3:#4A4A5A;--low:#FCA5A5;}}
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;padding:0 0 60px}}
+a{{color:var(--primary);text-decoration:none}}
+</style>
+</head>
+<body>
+<div class="editor-wrap" style="max-width:480px;margin:0 auto;padding:24px">
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px">
+    <a href="/dashboard" style="font-size:13px;color:var(--text2)">\u2190 voltar</a>
+    <h1 style="font-size:18px;font-weight:700">Contextos do dia</h1>
+  </div>
+  {items_html}
+  <form method="post" action="/dashboard/contextos-editor/add" style="margin-top:20px;display:flex;gap:10px">
+    <input type="text" name="label" placeholder="Novo contexto..." required
+      style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:14px;outline:none;font-family:inherit">
+    <button type="submit"
+      style="background:var(--primary);color:#0F0F14;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">
+      + Adicionar
+    </button>
+  </form>
+</div>
+</body>
+</html>"""
+    return page
+
+
+@router.post("/dashboard/contextos-editor/toggle", response_class=HTMLResponse)
+async def contextos_editor_toggle(id: int = Form(...)):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE contextos_config SET ativo = NOT ativo WHERE id=$1 AND user_id=1", id
+        )
+    return RedirectResponse("/dashboard/contextos-editor", status_code=303)
+
+
+@router.post("/dashboard/contextos-editor/add", response_class=HTMLResponse)
+async def contextos_editor_add(label: str = Form(...)):
+    label = label.strip()[:60]
+    if not label:
+        return RedirectResponse("/dashboard/contextos-editor", status_code=303)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO contextos_config (user_id, label, ordem) VALUES (1, $1, 99) ON CONFLICT DO NOTHING",
+            label,
+        )
+    return RedirectResponse("/dashboard/contextos-editor", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# POST /dashboard/remover
+# ---------------------------------------------------------------------------
 
 @router.post("/dashboard/remover")
 async def dashboard_remover(data: str = Form(...)):

@@ -128,6 +128,30 @@ CREATE TABLE IF NOT EXISTS erros (
   criado_em TIMESTAMP DEFAULT NOW()
 );
 
+-- Novos campos em checkins
+ALTER TABLE checkins ADD COLUMN IF NOT EXISTS contextos_dia JSONB DEFAULT '[]';
+ALTER TABLE checkins ADD COLUMN IF NOT EXISTS alimentacao INT CHECK (alimentacao BETWEEN 0 AND 10);
+ALTER TABLE checkins ADD COLUMN IF NOT EXISTS nota_resumo_ia TEXT;
+
+-- Tabela de contextos configuráveis por usuário
+CREATE TABLE IF NOT EXISTS contextos_config (
+  id        SERIAL PRIMARY KEY,
+  user_id   INT REFERENCES usuarios(id),
+  label     TEXT NOT NULL,
+  ativo     BOOLEAN DEFAULT TRUE,
+  ordem     INT DEFAULT 0,
+  criado_em TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id, label)
+);
+
+INSERT INTO contextos_config (user_id, label, ordem) VALUES
+  (1, 'maconha', 1),
+  (1, 'encontro com amigos', 2),
+  (1, 'encontro íntimo', 3),
+  (1, 'briga', 4),
+  (1, 'dor de barriga', 5)
+ON CONFLICT DO NOTHING;
+
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_checkins_user_data            ON checkins(user_id, data);
 CREATE INDEX IF NOT EXISTS idx_checkins_data_range           ON checkins(user_id, data DESC);

@@ -1,5 +1,5 @@
 import json as _json
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import zoneinfo
 from fastapi import APIRouter, Form
 from fastapi.responses import HTMLResponse
@@ -446,13 +446,15 @@ async def checkin_web_post(
             if existente:
                 return HTMLResponse(_ALREADY_HTML)
 
+            hoje = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).date()
+            ontem = hoje - timedelta(days=1)
             await conn.execute(
                 """
                 INSERT INTO checkins
                   (user_id, data, dor_fisica, energia, sono_horas, sono_qualidade,
                    saude_mental, stress_trabalho, stress_relacionamento, alcool,
                    exercicio, cigarros, desempenho_social, remedios_tomados)
-                VALUES ($1, (NOW() AT TIME ZONE 'America/Sao_Paulo')::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
+                VALUES ($1, $14, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
                 ON CONFLICT (user_id, data) DO UPDATE SET
                   dor_fisica = $2, energia = $3, sono_horas = $4, sono_qualidade = $5,
                   saude_mental = $6, stress_trabalho = $7, stress_relacionamento = $8,
@@ -461,7 +463,36 @@ async def checkin_web_post(
                 """,
                 user_id, dor_fisica, energia, sono_horas, sono_qualidade,
                 saude_mental, stress_trabalho, stress_relacionamento, alcool,
-                exercicio, cigarros, desempenho_social, remed_json,
+                exercicio, cigarros, desempenho_social, remed_json, hoje,
+            )
+            # Registrar sessão concluída (para o cron saber que check-in foi feito)
+            await conn.execute(
+                """
+                INSERT INTO checkin_sessions (user_id, data_referencia, status, concluido_em)
+                VALUES ($1, $2, 'concluido', NOW())
+                ON CONFLICT (user_id, data_referencia) DO UPDATE SET status='concluido', concluido_em=NOW()
+                """,
+                user_id, hoje,
+            )
+            # Atualizar streak (igual ao webhook)
+            await conn.execute(
+                """
+                INSERT INTO streak (user_id, streak_atual, streak_maximo, ultimo_checkin, atualizado_em)
+                VALUES ($1, 1, 1, $2, NOW())
+                ON CONFLICT (user_id) DO UPDATE
+                SET streak_atual = CASE
+                        WHEN streak.ultimo_checkin = $3 THEN streak.streak_atual + 1
+                        ELSE 1
+                    END,
+                    streak_maximo = GREATEST(streak.streak_maximo,
+                        CASE
+                            WHEN streak.ultimo_checkin = $3 THEN streak.streak_atual + 1
+                            ELSE 1
+                        END),
+                    ultimo_checkin = $2,
+                    atualizado_em = NOW()
+                """,
+                user_id, hoje, ontem,
             )
     except Exception as e:
         err_inner = (
