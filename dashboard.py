@@ -421,7 +421,7 @@ function openEdit(btn) {
   document.getElementById('ed-ci').value   = d.ci   || '';
   document.getElementById('ed-so').value   = d.so   || '';
   document.getElementById('ed-alim').value = d.alim || '';
-  document.getElementById('ed-ex').value   = d.ex   || '';
+  document.getElementById('ed-ex').value   = d.ex   || 'Nenhum';
   document.getElementById('ed-relato').value = d.relato || '';
   // Remédios
   var rj = d.rj || '[]';
@@ -589,7 +589,7 @@ function alimLabel(v){
     <div class="field"><label>&#10006; Cigarros</label><input name="cigarros" id="ed-ci" type="number" min="0"></div>
     <div class="field"><label>&#9728; Social</label><input name="desempenho_social" id="ed-so" type="number" min="0" max="10"></div>
     <div class="field"><label>&#127803; Alimentação (0-10)</label><input name="alimentacao" id="ed-alim" type="number" min="0" max="10"></div>
-    <div class="field"><label>&#9654; Exercício</label><input name="exercicio" id="ed-ex" type="text" placeholder="Nenhum / Leve / Moderado / Intenso"></div>
+    <div class="field"><label>&#9654; Exercício</label><select name="exercicio" id="ed-ex" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;padding:10px 12px;font-family:inherit;outline:none"><option value="Nenhum">Nenhum</option><option value="Leve">Leve</option><option value="Moderado">Moderado</option><option value="Intenso">Intenso</option></select></div>
   </div>
   <div class="modal-section">
     <div class="modal-section-title">&#128138; Relato</div>
@@ -852,6 +852,23 @@ async def dashboard_get():
 </div>"""
 
     # ---- Remédios prioritários ----
+    # ---- Exercício (histórico 7 dias) ----
+    EX_CORES = {"Nenhum": "#2A2A38", "Leve": "#FCD34D", "Moderado": "#86EFAC", "Intenso": "#A78BFA"}
+    EX_ALTURA = {"Nenhum": 4, "Leve": 16, "Moderado": 28, "Intenso": 40}
+    ex_html = ""
+    for r in list(reversed(rows))[-7:]:
+        ex_val = r["exercicio"] or "Nenhum"
+        cor = EX_CORES.get(ex_val, "#2A2A38")
+        altura = EX_ALTURA.get(ex_val, 4)
+        ds_ex = r["data"].strftime("%d/%m")
+        ex_html += f'<div class="ex-day"><div class="ex-bar" style="height:{altura}px;background:{cor}"></div><div class="ex-day-lbl">{ds_ex}</div><div class="ex-intensidade">{ex_val}</div></div>'
+    body += f"""
+<div class="sec-label">Exerc\xedcio</div>
+<div class="ex-card">
+  <div class="ex-title">Intensidade \u2014 7 dias</div>
+  <div class="ex-week">{ex_html}</div>
+</div>"""
+
     REMED_PRIORITARIOS = {"rivotril", "zolpidem"}
     hist_doses = {}
     _remed_padrao = [
