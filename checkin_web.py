@@ -154,7 +154,6 @@ body{
 /*DATA_INJECT*/
 if(typeof ST==='undefined'){var ST=[];}
 if(typeof REMED==='undefined'){var REMED=[];}
-if(typeof dataRef==='undefined'){var dataRef='hoje';}
 
 var cur=0;
 var vals={};
