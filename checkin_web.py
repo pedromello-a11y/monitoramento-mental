@@ -183,8 +183,8 @@ function render(){
     var sH=dataRef==='hoje'?' sel':'';
     var sO=dataRef==='ontem'?' sel':'';
     diaBar='<div style="display:flex;gap:8px;margin-bottom:18px">'
-      +'<button type="button" class="chip'+sH+'" style="flex:1" onclick="setDia(\'hoje\')">Hoje</button>'
-      +'<button type="button" class="chip'+sO+'" style="flex:1" onclick="setDia(\'ontem\')">Ontem</button>'
+      +'<button type="button" class="chip'+sH+'" style="flex:1" onclick="setDia(&quot;hoje&quot;)">Hoje</button>'
+      +'<button type="button" class="chip'+sO+'" style="flex:1" onclick="setDia(&quot;ontem&quot;)">Ontem</button>'
       +'</div>';
   }
 
