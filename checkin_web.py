@@ -157,6 +157,7 @@ if(typeof ST==='undefined'){var ST=[];}
 if(typeof REMED==='undefined'){var REMED=[];}
 
 var cur=0;
+document.getElementById('v-data_ref').value=dataRef;
 var vals={};
 ST.forEach(function(s){
   if(s.t==='remedios'){
