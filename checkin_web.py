@@ -144,6 +144,7 @@ body{
   <input type="hidden" id="v-stress_trabalho"        name="stress_trabalho">
   <input type="hidden" id="v-stress_relacionamento"  name="stress_relacionamento">
   <input type="hidden" id="v-alcool"                 name="alcool">
+  <input type="hidden" id="v-exercicio"              name="exercicio">
   <input type="hidden" id="v-cigarros"               name="cigarros">
   <input type="hidden" id="v-desempenho_social"      name="desempenho_social">
   <input type="hidden" id="v-remedios_tomados"       name="remedios_tomados">
@@ -179,7 +180,7 @@ function render(){
   document.getElementById('mt').textContent='Passo '+(cur+1)+' de '+n;
 
   var diaBar='';
-  if(cur===0){
+  if(cur===0&&!dataFixo){
     var sH=dataRef==='hoje'?' sel':'';
     var sO=dataRef==='ontem'?' sel':'';
     diaBar='<div style="display:flex;gap:8px;margin-bottom:18px">'
@@ -429,7 +430,8 @@ async def checkin_web_get(data: str = None):
     html = _FORM_HTML
     html = html.replace("/*ST_INJECT*/", "var ST=" + _json.dumps(_STEPS) + ";")
     html = html.replace("/*REMED_INJECT*/", "var REMED=" + _json.dumps(remed) + ";")
-    html = html.replace("/*DATA_INJECT*/", f"var dataRef={_json.dumps(data_inicial)};")
+    data_fixo = data is not None and re.match(r"^\d{4}-\d{2}-\d{2}$", data or "")
+    html = html.replace("/*DATA_INJECT*/", f"var dataRef={_json.dumps(data_inicial)};var dataFixo={_json.dumps(bool(data_fixo))};")
     return html
 
 
