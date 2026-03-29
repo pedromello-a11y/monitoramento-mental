@@ -928,9 +928,28 @@ async def dashboard_get():
 
     ctx_ativos = [c["label"] for c in contextos_lista if c["ativo"]]
 
+    # Montar mapa de dias com dados e preencher dias faltantes dos últimos 7
+    rows_by_date = {r["data"]: r for r in rows}
+    dias_7 = [hoje - timedelta(days=i) for i in range(6, -1, -1)]  # 6 dias atrás até hoje, cronológico inverso
+    dias_7 = list(reversed(dias_7))  # mais recente primeiro
+
     body += '<div class="sec-label" style="padding-top:16px">Hist\xf3rico</div>'
     body += '<div class="hist-compact">'
-    for r in rows:
+    for dia in dias_7:
+        r = rows_by_date.get(dia)
+        if r is None:
+            # Dia sem checkin — mostrar linha com link para preencher
+            ds = dia.strftime("%d/%m")
+            di = dia.isoformat()
+            body += (
+                f'<div class="hist-row" style="opacity:.5">'
+                f'<span class="hist-date">{ds}</span>'
+                f'<div class="hist-vals" style="color:var(--text3);font-size:11px">sem registro</div>'
+                f'<div class="hist-acts">'
+                f'<a href="/checkin-web?data={di}" class="act-btn" style="padding:4px 8px;font-size:11px;text-decoration:none">+ preencher</a>'
+                f'</div></div>'
+            )
+            continue
         di = r["data"].isoformat()
         ds = r["data"].strftime("%d/%m")
         me = r["saude_mental"]; en = r["energia"]; dor = r["dor_fisica"]

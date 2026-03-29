@@ -151,11 +151,12 @@ body{
 <script>
 /*ST_INJECT*/
 /*REMED_INJECT*/
+/*DATA_INJECT*/
 if(typeof ST==='undefined'){var ST=[];}
 if(typeof REMED==='undefined'){var REMED=[];}
+if(typeof dataRef==='undefined'){var dataRef='hoje';}
 
 var cur=0;
-var dataRef='hoje';
 var vals={};
 ST.forEach(function(s){
   if(s.t==='remedios'){
@@ -395,7 +396,18 @@ _SEM_BANCO_HTML = _BASE_PAGE.format(inner="""
 # ─── rotas ────────────────────────────────────────────────────────────────────
 
 @router.get("/checkin-web", response_class=HTMLResponse)
-async def checkin_web_get():
+async def checkin_web_get(data: str = None):
+    # data param: YYYY-MM-DD para pré-selecionar dia específico
+    import re
+    data_inicial = "hoje"
+    if data and re.match(r"^\d{4}-\d{2}-\d{2}$", data):
+        hoje_str = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).date().isoformat()
+        ontem_str = (datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).date() - timedelta(days=1)).isoformat()
+        if data == ontem_str:
+            data_inicial = "ontem"
+        elif data == hoje_str:
+            data_inicial = "hoje"
+
     remed = []
     try:
         pool = get_pool()
@@ -418,6 +430,7 @@ async def checkin_web_get():
     html = _FORM_HTML
     html = html.replace("/*ST_INJECT*/", "var ST=" + _json.dumps(_STEPS) + ";")
     html = html.replace("/*REMED_INJECT*/", "var REMED=" + _json.dumps(remed) + ";")
+    html = html.replace("/*DATA_INJECT*/", f"var dataRef={_json.dumps(data_inicial)};")
     return html
 
 
