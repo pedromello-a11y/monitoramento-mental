@@ -308,6 +308,12 @@ a{color:var(--primary);text-decoration:none}
 .heatmap{display:flex;flex-wrap:wrap;gap:4px}
 .dot{width:12px;height:12px;border-radius:3px;flex-shrink:0}
 
+/* Histórico colapsável */
+.hist-section{margin:0}
+.hist-section-label::-webkit-details-marker{display:none}
+.hist-section[open] .hist-toggle-icon{transform:rotate(180deg)}
+.hist-toggle-icon{font-size:11px;color:var(--text3);transition:transform .2s}
+
 /* Histórico compacto */
 .hist-compact{margin:0 24px;display:flex;flex-direction:column;gap:1px}
 .hist-row-wrap{background:var(--surface);border-radius:0}
@@ -956,7 +962,7 @@ async def dashboard_get():
     dias_7 = [hoje - timedelta(days=i) for i in range(6, -1, -1)]  # 6 dias atrás até hoje, cronológico inverso
     dias_7 = list(reversed(dias_7))  # mais recente primeiro
 
-    body += '<div class="sec-label" style="padding-top:16px">Hist\xf3rico</div>'
+    body += '<details class="hist-section" id="hist-section"><summary class="sec-label hist-section-label" style="padding-top:16px;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">Hist\xf3rico<span class="hist-toggle-icon">&#9660;</span></summary>'
     body += '<div class="hist-compact">'
     for dia in dias_7:
         r = rows_by_date.get(dia)
@@ -1088,7 +1094,7 @@ async def dashboard_get():
             f'<div class="hist-detail">{detail_html}</div>'
             f'</details>'
         )
-    body += '</div>'
+    body += '</div></details>'
 
     # ---- HTML do modal: remédios ----
     remed_modal_html = ""
