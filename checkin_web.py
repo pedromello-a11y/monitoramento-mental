@@ -135,6 +135,7 @@ body{
 </div>
 <form id="f" method="post" action="/checkin-web" style="display:none">
   <input type="hidden" name="user_id" value="1">
+  <input type="hidden" id="v-data_ref"               name="data_ref" value="hoje">
   <input type="hidden" id="v-dor_fisica"             name="dor_fisica">
   <input type="hidden" id="v-energia"                name="energia">
   <input type="hidden" id="v-sono_horas"             name="sono_horas">
@@ -154,6 +155,7 @@ if(typeof ST==='undefined'){var ST=[];}
 if(typeof REMED==='undefined'){var REMED=[];}
 
 var cur=0;
+var dataRef='hoje';
 var vals={};
 ST.forEach(function(s){
   if(s.t==='remedios'){
@@ -165,12 +167,28 @@ ST.forEach(function(s){
   }
 });
 
+function setDia(v){
+  dataRef=v;
+  document.getElementById('v-data_ref').value=v;
+  render();
+}
+
 function render(){
   var n=ST.length, s=ST[cur];
   document.getElementById('pg').style.width=Math.round(cur/n*100)+'%';
   document.getElementById('mt').textContent='Passo '+(cur+1)+' de '+n;
 
-  var h='<div class="question">'+s.q+'</div>';
+  var diaBar='';
+  if(cur===0){
+    var sH=dataRef==='hoje'?' sel':'';
+    var sO=dataRef==='ontem'?' sel':'';
+    diaBar='<div style="display:flex;gap:8px;margin-bottom:18px">'
+      +'<button type="button" class="chip'+sH+'" style="flex:1" onclick="setDia(\'hoje\')">Hoje</button>'
+      +'<button type="button" class="chip'+sO+'" style="flex:1" onclick="setDia(\'ontem\')">Ontem</button>'
+      +'</div>';
+  }
+
+  var h=diaBar+'<div class="question">'+s.q+'</div>';
   if(s.h) h+='<div class="hint">'+s.h+'</div>';
 
   if(s.t==='scale'){
@@ -426,6 +444,7 @@ async def checkin_web_post(
     cigarros: int = Form(...),
     desempenho_social: int = Form(...),
     remedios_tomados: str = Form(default="[]"),
+    data_ref: str = Form(default="hoje"),
 ):
     try:
         remed_json = _json.dumps(_json.loads(remedios_tomados), ensure_ascii=False)
@@ -438,16 +457,17 @@ async def checkin_web_post(
         return HTMLResponse(_SEM_BANCO_HTML, status_code=503)
 
     try:
+        hoje = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).date()
+        ontem = hoje - timedelta(days=1)
+        data_alvo = ontem if data_ref == "ontem" else hoje
+
         async with pool.acquire() as conn:
             existente = await conn.fetchrow(
-                "SELECT id FROM checkins WHERE user_id = $1 AND data = (NOW() AT TIME ZONE 'America/Sao_Paulo')::date",
-                user_id,
+                "SELECT id FROM checkins WHERE user_id = $1 AND data = $2",
+                user_id, data_alvo,
             )
             if existente:
                 return HTMLResponse(_ALREADY_HTML)
-
-            hoje = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).date()
-            ontem = hoje - timedelta(days=1)
             await conn.execute(
                 """
                 INSERT INTO checkins
@@ -463,7 +483,7 @@ async def checkin_web_post(
                 """,
                 user_id, dor_fisica, energia, sono_horas, sono_qualidade,
                 saude_mental, stress_trabalho, stress_relacionamento, alcool,
-                exercicio, cigarros, desempenho_social, remed_json, hoje,
+                exercicio, cigarros, desempenho_social, remed_json, data_alvo,
             )
             # Registrar sessão concluída (para o cron saber que check-in foi feito)
             await conn.execute(
@@ -472,28 +492,29 @@ async def checkin_web_post(
                 VALUES ($1, $2, 'concluido', NOW())
                 ON CONFLICT (user_id, data_referencia) DO UPDATE SET status='concluido', concluido_em=NOW()
                 """,
-                user_id, hoje,
+                user_id, data_alvo,
             )
-            # Atualizar streak (igual ao webhook)
-            await conn.execute(
-                """
-                INSERT INTO streak (user_id, streak_atual, streak_maximo, ultimo_checkin, atualizado_em)
-                VALUES ($1, 1, 1, $2, NOW())
-                ON CONFLICT (user_id) DO UPDATE
-                SET streak_atual = CASE
-                        WHEN streak.ultimo_checkin = $3 THEN streak.streak_atual + 1
-                        ELSE 1
-                    END,
-                    streak_maximo = GREATEST(streak.streak_maximo,
-                        CASE
+            # Atualizar streak apenas para check-in de hoje
+            if data_alvo == hoje:
+                await conn.execute(
+                    """
+                    INSERT INTO streak (user_id, streak_atual, streak_maximo, ultimo_checkin, atualizado_em)
+                    VALUES ($1, 1, 1, $2, NOW())
+                    ON CONFLICT (user_id) DO UPDATE
+                    SET streak_atual = CASE
                             WHEN streak.ultimo_checkin = $3 THEN streak.streak_atual + 1
                             ELSE 1
-                        END),
-                    ultimo_checkin = $2,
-                    atualizado_em = NOW()
-                """,
-                user_id, hoje, ontem,
-            )
+                        END,
+                        streak_maximo = GREATEST(streak.streak_maximo,
+                            CASE
+                                WHEN streak.ultimo_checkin = $3 THEN streak.streak_atual + 1
+                                ELSE 1
+                            END),
+                        ultimo_checkin = $2,
+                        atualizado_em = NOW()
+                    """,
+                    user_id, hoje, ontem,
+                )
     except Exception as e:
         err_inner = (
             '<div class="icon">\u26A0\uFE0F</div>'

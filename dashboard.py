@@ -310,10 +310,17 @@ a{color:var(--primary);text-decoration:none}
 
 /* Histórico compacto */
 .hist-compact{margin:0 24px;display:flex;flex-direction:column;gap:1px}
-.hist-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border-radius:0;font-size:12px}
-.hist-row:first-child{border-radius:12px 12px 0 0}
-.hist-row:last-child{border-radius:0 0 12px 12px}
-.hist-row:only-child{border-radius:12px}
+.hist-row-wrap{background:var(--surface);border-radius:0}
+.hist-row-wrap:first-child{border-radius:12px 12px 0 0}
+.hist-row-wrap:last-child{border-radius:0 0 12px 12px}
+.hist-row-wrap:only-child{border-radius:12px}
+.hist-row-wrap summary{list-style:none;cursor:pointer}
+.hist-row-wrap summary::-webkit-details-marker{display:none}
+.hist-row{display:flex;align-items:center;gap:10px;padding:8px 12px;font-size:12px}
+.hist-detail{padding:10px 12px 14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+.hist-detail-relato{background:var(--surface2);border-radius:10px;padding:12px}
+.hist-detail-row{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.hist-detail-lbl{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;min-width:72px;padding-top:1px}
 .hist-date{font-weight:700;color:var(--text);min-width:32px}
 .hist-vals{display:flex;gap:8px;flex:1;flex-wrap:wrap}
 .hist-chip{font-size:11px;color:var(--text2);background:var(--surface2);border-radius:6px;padding:2px 6px}
@@ -515,6 +522,24 @@ function enviarAudio(){
       else{document.getElementById('audio-status').textContent='Erro ao transcrever. Tente novamente.';document.getElementById('btn-send-audio').disabled=false;}
     })
     .catch(function(){document.getElementById('audio-status').textContent='Erro de conexão.';document.getElementById('btn-send-audio').disabled=false;});
+}
+// ── Relato embutido no histórico ─────────────────────────────────────────────
+function abrirRelatoEmbutido(di){
+  var form=document.getElementById('relato-'+di+'-form');
+  var ta=document.getElementById('relato-'+di+'-textarea');
+  if(form){form.style.display=form.style.display==='none'?'block':'none';}
+  if(ta){ta.style.display='block';}
+}
+function salvarRelatoEmbutido(di){
+  var inp=document.getElementById('relato-'+di+'-input');
+  if(!inp)return;
+  var texto=inp.value.trim();
+  if(!texto)return;
+  var fd=new FormData();fd.append('texto',texto);fd.append('data',di);
+  fetch('/dashboard/relato',{method:'POST',body:fd})
+    .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
+    .then(function(res){if(res.ok&&res.j.ok){location.reload();}})
+    .catch(function(){});
 }
 // ── Remédios quick update ────────────────────────────────────────────────────
 function remedUpdate(nome,delta){
@@ -766,241 +791,29 @@ async def dashboard_get():
     # =========================================================================
     m = media
 
-    # ---- Relato (posição nobre — logo após o hero) ----
-    # Buscar o relato mais recente com dados (não só de hoje)
-    ref_relato = next((r for r in rows if r["nota_raw"]), None)
-    body += '<div class="sec-label">Relato</div>'
-
-    if ref_relato and ref_relato["nota_raw"]:
-        nota_raw = ref_relato["nota_raw"]
-        nota_resumo = ref_relato["nota_resumo_ia"] or ""
-        nota_sent = ref_relato["nota_sentimento"] or ""
-        nota_cats = ref_relato["nota_categorias"] or []
-        if isinstance(nota_cats, str):
-            try:
-                nota_cats = _json.loads(nota_cats)
-            except Exception:
-                nota_cats = []
-
-        try:
-            relato_date_display = ref_relato["data"].strftime("%-d de %B") if ref_relato["data"] != hoje else "hoje"
-        except ValueError:
-            relato_date_display = ref_relato["data"].strftime("%d de %B") if ref_relato["data"] != hoje else "hoje"
-
-        badge_html = _sent_badge(nota_sent)
-        resumo_display = nota_resumo if nota_resumo else (nota_raw[:90] + ("…" if len(nota_raw) > 90 else ""))
-
-        cats_html = ""
-        if nota_cats:
-            cats_html = '<div class="relato-cats">' + "".join(
-                f'<span class="relato-tag">{_html_mod.escape(str(c))}</span>' for c in nota_cats
-            ) + '</div>'
-
-        ver_inteiro = ""
-        if nota_raw and len(nota_raw) > 5:
-            ver_inteiro = (
-                f'<details class="relato-expand">'
-                f'<summary>ver relato completo</summary>'
-                f'<div class="relato-raw-text">{_html_mod.escape(nota_raw)}</div>'
-                f'</details>'
-            )
-
-        # Div oculta para armazenar raw para edição
-        raw_hidden = f'<div id="relato-saved-raw" data-raw="{_html_mod.escape(nota_raw)}" style="display:none"></div>'
-
-        body += f"""
-<div class="relato-card">
-  {raw_hidden}
-  <div id="relato-saved">
-    <div class="relato-header">
-      <span class="relato-title">\U0001f4dd {relato_date_display}</span>
-      <div style="display:flex;align-items:center;gap:8px">
-        {badge_html}
-        <button class="relato-edit-btn" onclick="mostrarFormRelato()">\u270f editar</button>
-      </div>
-    </div>
-    <div class="relato-resumo">{_html_mod.escape(resumo_display)}</div>
-    {cats_html}
-    {ver_inteiro}
-  </div>
-  <div id="relato-form" style="display:none">
-    <div class="relato-prompt">Editar relato:</div>
-    <div id="relato-actions" class="relato-actions">
-      <button class="relato-btn" onclick="relatoTexto()">\u270f\ufe0f Texto</button>
-      <button class="relato-btn relato-btn-audio" onclick="relatoAudio()">\U0001f3a4 \xc1udio</button>
-    </div>
-    <div id="relato-text-area" style="display:none">
-      <textarea id="relato-input" placeholder="Ex: ansiedade depois da reuni\xe3o..."></textarea>
-      <button class="relato-submit" onclick="enviarRelato()">Salvar</button>
-    </div>
-    <div id="relato-audio-area" style="display:none">
-      <div class="relato-audio-status" id="audio-status">Pronto para gravar.</div>
-      <div class="relato-actions">
-        <button class="relato-btn relato-btn-rec" id="btn-rec" onclick="toggleGravacao()">\u23fa Iniciar grava\xe7\xe3o</button>
-        <button class="relato-btn" id="btn-send-audio" style="display:none" onclick="enviarAudio()">Enviar</button>
-      </div>
-    </div>
-  </div>
-</div>"""
-    else:
-        body += f"""
-<div class="relato-card">
-  <div id="relato-saved" style="display:none"></div>
-  <div id="relato-form">
-    <div class="relato-prompt">Algo pontual a registrar? Gatilhos, momentos, observa\xe7\xf5es.</div>
-    <div id="relato-actions" class="relato-actions">
-      <button class="relato-btn" onclick="relatoTexto()">\u270f\ufe0f Texto</button>
-      <button class="relato-btn relato-btn-audio" onclick="relatoAudio()">\U0001f3a4 \xc1udio</button>
-    </div>
-    <div id="relato-text-area" style="display:none">
-      <textarea id="relato-input" placeholder="Ex: ansiedade depois da reuni\xe3o..."></textarea>
-      <button class="relato-submit" onclick="enviarRelato()">Salvar</button>
-    </div>
-    <div id="relato-audio-area" style="display:none">
-      <div class="relato-audio-status" id="audio-status">Pronto para gravar.</div>
-      <div class="relato-actions">
-        <button class="relato-btn relato-btn-rec" id="btn-rec" onclick="toggleGravacao()">\u23fa Iniciar grava\xe7\xe3o</button>
-        <button class="relato-btn" id="btn-send-audio" style="display:none" onclick="enviarAudio()">Enviar</button>
-      </div>
-    </div>
-  </div>
-</div>"""
-
-    # ---- Remédios prioritários ----
-    REMED_PRIORITARIOS = {"rivotril", "zolpidem"}
-    hist_doses = {}
-    _remed_padrao = [
-        {"nome": r["nome"], "qtd": float(r["dose_padrao"] or 1), "tomado": True}
-        for r in remedios_padrao
-    ]
-    for r in rows:
-        rj = r["remedios_tomados"]
-        data_str_r = r["data"].strftime("%d/%m")
-        try:
-            itens = (rj if isinstance(rj, list) else _json.loads(rj)) if rj else []
-            for item in itens:
-                if not item.get("tomado"):
-                    continue
-                nome = item["nome"]
-                qtd = item.get("qtd", 1)
-                if nome.lower() in REMED_PRIORITARIOS:
-                    if nome not in hist_doses:
-                        hist_doses[nome] = []
-                    hist_doses[nome].append((data_str_r, qtd))
-        except Exception:
-            pass
-
-    body += '<div class="sec-label">Rem\xe9dios</div>'
-    remed_prio_html = ""
-    for nome_prio in ["Rivotril", "Zolpidem"]:
-        doses = hist_doses.get(nome_prio, [])
-        # dose de hoje: buscar do check-in de hoje (não fallback)
-        dose_hoje_val = None
-        if checkin_hoje and checkin_hoje["remedios_tomados"]:
-            try:
-                rj_hoje = checkin_hoje["remedios_tomados"]
-                arr_hoje = (rj_hoje if isinstance(rj_hoje, list) else _json.loads(rj_hoje)) if rj_hoje else []
-                for item in arr_hoje:
-                    if item.get("nome", "").lower() == nome_prio.lower() and item.get("tomado"):
-                        dose_hoje_val = item.get("qtd", 0)
-                        break
-            except Exception:
-                pass
-        elif doses:
-            dose_hoje_val = doses[0][1]
-
-        dose_display = f'{dose_hoje_val:g}' if dose_hoje_val is not None else "\u2014"
-
-        # baseline do remédio
-        baseline = next((float(r["dose_padrao"] or 1) for r in remedios_padrao if r["nome"].lower() == nome_prio.lower()), 1)
-        max_dose = max((d[1] for d in doses), default=baseline) or 1
-
-        barras = ""
-        doses_crono = list(reversed(doses[:7]))
-        for i, (ds_r, qtd) in enumerate(doses_crono):
-            h = max(4, int((qtd / max_dose) * 40))
-            cls = "remed-hist-bar today" if i == len(doses_crono) - 1 else "remed-hist-bar"
-            barras += f'<div style="flex:1;display:flex;flex-direction:column;align-items:center"><div class="{cls}" style="height:{h}px;width:100%"></div><div class="remed-hist-label">{ds_r}</div></div>'
-        hist_inner = barras if barras else '<span style="font-size:12px;color:var(--text3)">sem hist\xf3rico</span>'
-
-        remed_prio_html += f"""
-<div class="remed-priority-card">
-  <div class="remed-priority-name">{nome_prio}</div>
-  <div style="display:flex;align-items:center;justify-content:space-between">
-    <div class="remed-priority-dose" id="remed-qtd-{nome_prio}">{dose_display}<span> comp.</span></div>
-    <div style="display:flex;gap:6px">
-      <button class="remed-upd-btn" onclick="remedUpdate('{nome_prio}',-0.5)">&#8722;</button>
-      <button class="remed-upd-btn remed-upd-plus" onclick="remedUpdate('{nome_prio}',0.5)">+</button>
-    </div>
-  </div>
-  <div class="remed-priority-hist">{hist_inner}</div>
-  <div class="remed-baseline">padr\xe3o: {baseline:g} comp.</div>
-</div>"""
-
-    body += f'<div class="remed-priority-grid">{remed_prio_html}</div>'
-
-    secundarios = [r for r in _remed_padrao if r["nome"].lower() not in REMED_PRIORITARIOS]
-    if secundarios:
-        sec_items = "".join(f'<span class="remed-sec-item">{_html_mod.escape(s["nome"])}</span>' for s in secundarios)
-        body += f'<div class="remed-sec"><span class="remed-sec-label">Outros</span>{sec_items}</div>'
-
-    # ---- Exercício ----
-    EX_CORES = {"Nenhum": "#2A2A38", "Leve": "#FCD34D", "Moderado": "#86EFAC", "Intenso": "#A78BFA"}
-    EX_ALTURA = {"Nenhum": 4, "Leve": 16, "Moderado": 28, "Intenso": 40}
-    ex_html = ""
-    for r in list(reversed(rows))[-7:]:
-        ex_val = r["exercicio"] or "Nenhum"
-        cor = EX_CORES.get(ex_val, "#2A2A38")
-        altura = EX_ALTURA.get(ex_val, 4)
-        ds_ex = r["data"].strftime("%d/%m")
-        ex_html += f'<div class="ex-day"><div class="ex-bar" style="height:{altura}px;background:{cor}"></div><div class="ex-day-lbl">{ds_ex}</div><div class="ex-intensidade">{ex_val}</div></div>'
+    # ---- Consistência + heatmap ----
+    s_atual = streak_row["streak_atual"] if streak_row else 0
+    s_max = streak_row["streak_maximo"] if streak_row else 0
+    heat_map = {r["data"]: r["saude_mental"] for r in heat_rows}
+    dots = ""
+    for i in range(29, -1, -1):
+        d = hoje - timedelta(days=i)
+        mental_val = heat_map.get(d)
+        color = _dot_color(mental_val)
+        title = d.strftime("%d/%m") + (f" \u2014 {mental_val}" if mental_val is not None else " \u2014 sem dado")
+        dots += f'<div class="dot" style="background:{color}" title="{title}"></div>'
 
     body += f"""
-<div class="sec-label">Exerc\xedcio</div>
-<div class="ex-card">
-  <div class="ex-title">Intensidade \u2014 7 dias</div>
-  <div class="ex-week">{ex_html}</div>
-</div>"""
-
-    # ---- Contextos do dia ----
-    ctx_hoje = []
-    if checkin_hoje and checkin_hoje["contextos_dia"]:
-        try:
-            cd = checkin_hoje["contextos_dia"]
-            ctx_hoje = (cd if isinstance(cd, list) else _json.loads(cd)) if cd else []
-        except Exception:
-            ctx_hoje = []
-
-    ctx_ativos = [c["label"] for c in contextos_lista if c["ativo"]]
-    if ctx_ativos:
-        ctx_chips_html = ""
-        for lbl in ctx_ativos:
-            is_active = lbl in ctx_hoje
-            cls = "ctx-chip active" if is_active else "ctx-chip"
-            ctx_chips_html += f'<button class="{cls}" onclick="toggleContexto(this, {_json.dumps(lbl)})">{_html_mod.escape(lbl)}</button>'
-        body += f"""
-<div class="sec-label">Contextos do dia</div>
-<div class="ctx-wrap">
-  <div class="ctx-grid">{ctx_chips_html}</div>
-  <a href="/dashboard/contextos-editor" class="ctx-manage">+ gerenciar lista</a>
-</div>"""
-
-    # ---- Alimentação ----
-    alim_hoje = checkin_hoje["alimentacao"] if checkin_hoje and checkin_hoje["alimentacao"] is not None else None
-    alim_val = alim_hoje if alim_hoje is not None else 5
-    alim_lbl = _alim_label(alim_hoje)
-    body += f"""
-<div class="sec-label">Alimenta\xe7\xe3o</div>
-<div class="alim-card">
-  <div class="alim-labels"><span>Besteira</span><span>Saud\xe1vel</span></div>
-  <div class="alim-row">
-    <input type="range" class="alim-slider" min="0" max="10" value="{alim_val}"
-           oninput="alimInput(this.value)" style="flex:1">
-    <div style="text-align:center;min-width:52px">
-      <div class="alim-val" id="alim-val-display">{alim_hoje if alim_hoje is not None else "—"}</div>
-      <div class="alim-label-val" id="alim-label-display">{alim_lbl if alim_hoje is not None else ""}</div>
+<div class="sec-label">Consist\xeancia</div>
+<div class="streak-card">
+  <div class="streak-row">
+    <div class="streak-num">\U0001f525 {s_atual}</div>
+    <div class="streak-info">
+      <div class="streak-frase">{_streak_frase(s_atual, s_max)}</div>
+      <div class="streak-max">M\xe1ximo: {s_max} dias</div>
     </div>
   </div>
+  <div class="heatmap">{dots}</div>
 </div>"""
 
     # ---- Médias da semana ----
@@ -1035,32 +848,86 @@ async def dashboard_get():
   </div>
 </div>"""
 
-    # ---- Streak + heatmap ----
-    s_atual = streak_row["streak_atual"] if streak_row else 0
-    s_max = streak_row["streak_maximo"] if streak_row else 0
-    heat_map = {r["data"]: r["saude_mental"] for r in heat_rows}
-    dots = ""
-    for i in range(29, -1, -1):
-        d = hoje - timedelta(days=i)
-        mental_val = heat_map.get(d)
-        color = _dot_color(mental_val)
-        title = d.strftime("%d/%m") + (f" \u2014 {mental_val}" if mental_val is not None else " \u2014 sem dado")
-        dots += f'<div class="dot" style="background:{color}" title="{title}"></div>'
+    # ---- Remédios prioritários ----
+    REMED_PRIORITARIOS = {"rivotril", "zolpidem"}
+    hist_doses = {}
+    _remed_padrao = [
+        {"nome": r["nome"], "qtd": float(r["dose_padrao"] or 1), "tomado": True}
+        for r in remedios_padrao
+    ]
+    for r in rows:
+        rj = r["remedios_tomados"]
+        data_str_r = r["data"].strftime("%d/%m")
+        try:
+            itens = (rj if isinstance(rj, list) else _json.loads(rj)) if rj else []
+            for item in itens:
+                if not item.get("tomado"):
+                    continue
+                nome = item["nome"]
+                qtd = item.get("qtd", 1)
+                if nome.lower() in REMED_PRIORITARIOS:
+                    if nome not in hist_doses:
+                        hist_doses[nome] = []
+                    hist_doses[nome].append((data_str_r, qtd))
+        except Exception:
+            pass
 
-    body += f"""
-<div class="sec-label">Consist\xeancia</div>
-<div class="streak-card">
-  <div class="streak-row">
-    <div class="streak-num">\U0001f525 {s_atual}</div>
-    <div class="streak-info">
-      <div class="streak-frase">{_streak_frase(s_atual, s_max)}</div>
-      <div class="streak-max">M\xe1ximo: {s_max} dias</div>
+    body += '<div class="sec-label">Rem\xe9dios</div>'
+    remed_prio_html = ""
+    for nome_prio in ["Rivotril", "Zolpidem"]:
+        doses = hist_doses.get(nome_prio, [])
+        dose_hoje_val = None
+        if checkin_hoje and checkin_hoje["remedios_tomados"]:
+            try:
+                rj_hoje = checkin_hoje["remedios_tomados"]
+                arr_hoje = (rj_hoje if isinstance(rj_hoje, list) else _json.loads(rj_hoje)) if rj_hoje else []
+                for item in arr_hoje:
+                    if item.get("nome", "").lower() == nome_prio.lower() and item.get("tomado"):
+                        dose_hoje_val = item.get("qtd", 0)
+                        break
+            except Exception:
+                pass
+        elif doses:
+            dose_hoje_val = doses[0][1]
+
+        dose_display = f'{dose_hoje_val:g}' if dose_hoje_val is not None else "\u2014"
+        baseline = next((float(r["dose_padrao"] or 1) for r in remedios_padrao if r["nome"].lower() == nome_prio.lower()), 1)
+        max_dose = max((d[1] for d in doses), default=baseline) or 1
+
+        barras = ""
+        doses_crono = list(reversed(doses[:7]))
+        for i, (ds_r, qtd) in enumerate(doses_crono):
+            h = max(4, int((qtd / max_dose) * 40))
+            cls = "remed-hist-bar today" if i == len(doses_crono) - 1 else "remed-hist-bar"
+            barras += f'<div style="flex:1;display:flex;flex-direction:column;align-items:center"><div class="{cls}" style="height:{h}px;width:100%"></div><div class="remed-hist-label">{ds_r}</div></div>'
+        hist_inner = barras if barras else '<span style="font-size:12px;color:var(--text3)">sem hist\xf3rico</span>'
+
+        remed_prio_html += f"""
+<div class="remed-priority-card">
+  <div class="remed-priority-name">{nome_prio}</div>
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <div class="remed-priority-dose" id="remed-qtd-{nome_prio}">{dose_display}<span> comp.</span></div>
+    <div style="display:flex;gap:6px">
+      <button class="remed-upd-btn" onclick="remedUpdate('{nome_prio}',-0.5)">&#8722;</button>
+      <button class="remed-upd-btn remed-upd-plus" onclick="remedUpdate('{nome_prio}',0.5)">+</button>
     </div>
   </div>
-  <div class="heatmap">{dots}</div>
+  <div class="remed-priority-hist">{hist_inner}</div>
+  <div class="remed-baseline">padr\xe3o: {baseline:g} comp.</div>
 </div>"""
 
-    # ---- Histórico compacto (editável via data-* attrs) ----
+    body += f'<div class="remed-priority-grid">{remed_prio_html}</div>'
+
+    secundarios = [r for r in _remed_padrao if r["nome"].lower() not in REMED_PRIORITARIOS]
+    if secundarios:
+        sec_items = "".join(f'<span class="remed-sec-item">{_html_mod.escape(s["nome"])}</span>' for s in secundarios)
+        body += f'<div class="remed-sec"><span class="remed-sec-label">Outros</span>{sec_items}</div>'
+
+    # ---- Histórico expandível (com relato, exercício, contextos, alimentação por dia) ----
+    EX_CORES = {"Nenhum": "#2A2A38", "Leve": "#FCD34D", "Moderado": "#86EFAC", "Intenso": "#A78BFA"}
+
+    ctx_ativos = [c["label"] for c in contextos_lista if c["ativo"]]
+
     body += '<div class="sec-label" style="padding-top:16px">Hist\xf3rico</div>'
     body += '<div class="hist-compact">'
     for r in rows:
@@ -1072,36 +939,112 @@ async def dashboard_get():
         so = r["desempenho_social"]; ci = r["cigarros"]
         alim = r["alimentacao"]
         nota_raw_h = r["nota_raw"] or ""
+        nota_resumo_h = r["nota_resumo_ia"] or ""
+        nota_sent_h = r["nota_sentimento"] or ""
+        nota_cats_h = r["nota_categorias"] or []
+        if isinstance(nota_cats_h, str):
+            try: nota_cats_h = _json.loads(nota_cats_h)
+            except Exception: nota_cats_h = []
         rj_raw = r["remedios_tomados"]
         ctx_raw = r["contextos_dia"]
-        # Usar html.escape para os atributos data-* (seguro para qualquer conteúdo)
         rj_esc = _html_mod.escape(_json.dumps(rj_raw if isinstance(rj_raw, list) else (_json.loads(rj_raw) if rj_raw else [])))
         ctx_esc = _html_mod.escape(_json.dumps(ctx_raw if isinstance(ctx_raw, list) else (_json.loads(ctx_raw) if ctx_raw else [])))
         nota_esc = _html_mod.escape(nota_raw_h)
+
         me_c = _score_color(me) if me is not None else "#4A4A5A"
         chips_h = ""
         if me is not None: chips_h += f'<span class="hist-chip" style="color:{me_c}">mental {me}</span>'
         if en is not None: chips_h += f'<span class="hist-chip">energia {en}</span>'
         if sh is not None: chips_h += f'<span class="hist-chip">sono {sh}h</span>'
         if dor is not None: chips_h += f'<span class="hist-chip">dor {dor}</span>'
-        if al: chips_h += f'<span class="hist-chip">{_html_mod.escape(al)}</span>'
+        if al and al != "Nenhum": chips_h += f'<span class="hist-chip">{_html_mod.escape(al)}</span>'
         if ex and ex != "Nenhum": chips_h += f'<span class="hist-chip">{_html_mod.escape(ex)}</span>'
         if alim is not None: chips_h += f'<span class="hist-chip">alim {alim}</span>'
+
+        # -- detalhes expandíveis --
+        detail_html = ""
+
+        # relato
+        is_hoje = r["data"] == hoje
+        relato_id = f"relato-{di}"
+        if nota_raw_h:
+            resumo_display = nota_resumo_h if nota_resumo_h else (nota_raw_h[:90] + ("…" if len(nota_raw_h) > 90 else ""))
+            badge = _sent_badge(nota_sent_h)
+            cats = "".join(f'<span class="relato-tag">{_html_mod.escape(str(c))}</span>' for c in nota_cats_h)
+            cats_html = f'<div class="relato-cats" style="margin-top:6px">{cats}</div>' if cats else ""
+            ver = (
+                f'<details class="relato-expand" style="margin-top:6px">'
+                f'<summary>ver relato completo</summary>'
+                f'<div class="relato-raw-text">{_html_mod.escape(nota_raw_h)}</div>'
+                f'</details>'
+            ) if len(nota_raw_h) > 5 else ""
+            detail_html += f"""
+<div class="hist-detail-relato">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Relato</span>
+    <div style="display:flex;gap:6px;align-items:center">{badge}<button class="relato-edit-btn" onclick="abrirRelatoEmbutido('{di}')" style="font-size:11px">\u270f editar</button></div>
+  </div>
+  <div style="font-size:13px;color:var(--text2)">{_html_mod.escape(resumo_display)}</div>
+  {cats_html}{ver}
+  <div id="{relato_id}-form" style="display:none;margin-top:10px">
+    <textarea id="{relato_id}-input" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;padding:10px;font-family:inherit;resize:vertical" rows="3">{_html_mod.escape(nota_raw_h)}</textarea>
+    <button class="relato-submit" style="margin-top:6px;font-size:13px" onclick="salvarRelatoEmbutido('{di}')">Salvar</button>
+  </div>
+</div>"""
+        elif is_hoje:
+            detail_html += f"""
+<div class="hist-detail-relato">
+  <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Relato</div>
+  <div id="{relato_id}-form">
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button class="relato-btn" onclick="abrirRelatoEmbutido('{di}')">\u270f\ufe0f Texto</button>
+      <button class="relato-btn relato-btn-audio" onclick="relatoAudio()">\U0001f3a4 \xc1udio</button>
+    </div>
+    <div id="{relato_id}-textarea" style="display:none">
+      <textarea id="{relato_id}-input" placeholder="Algo pontual a registrar..." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;padding:10px;font-family:inherit;resize:vertical" rows="3"></textarea>
+      <button class="relato-submit" style="margin-top:6px;font-size:13px" onclick="salvarRelatoEmbutido('{di}')">Salvar</button>
+    </div>
+  </div>
+</div>"""
+
+        # exercício
+        ex_cor = EX_CORES.get(ex or "Nenhum", "#2A2A38")
+        ex_display = ex if ex else "Nenhum"
+        detail_html += f'<div class="hist-detail-row"><span class="hist-detail-lbl">Exerc\xedcio</span><span style="color:{ex_cor};font-size:13px;font-weight:600">{_html_mod.escape(ex_display)}</span></div>'
+
+        # contextos
+        try:
+            ctx_dia = ctx_raw if isinstance(ctx_raw, list) else (_json.loads(ctx_raw) if ctx_raw else [])
+        except Exception:
+            ctx_dia = []
+        if ctx_dia:
+            ctx_chips = "".join(f'<span class="relato-tag">{_html_mod.escape(c)}</span>' for c in ctx_dia)
+            detail_html += f'<div class="hist-detail-row"><span class="hist-detail-lbl">Contextos</span><div style="display:flex;flex-wrap:wrap;gap:4px">{ctx_chips}</div></div>'
+
+        # alimentação
+        if alim is not None:
+            alim_lbl_r = _alim_label(alim)
+            detail_html += f'<div class="hist-detail-row"><span class="hist-detail-lbl">Alimenta\xe7\xe3o</span><span style="font-size:13px;font-weight:600;color:var(--text2)">{alim} — {alim_lbl_r}</span></div>'
+
         body += (
-            f'<div class="hist-row">'
+            f'<details class="hist-row-wrap">'
+            f'<summary class="hist-row">'
             f'<span class="hist-date">{ds}</span>'
             f'<div class="hist-vals">{chips_h}</div>'
             f'<div class="hist-acts">'
             f'<button class="act-btn" style="padding:4px 8px;font-size:11px" '
-            f'onclick="openEdit(this)" '
+            f'onclick="event.preventDefault();openEdit(this)" '
             f'data-data="{di}" data-dor="{dor or ""}" data-en="{en or ""}" '
             f'data-sh="{sh or ""}" data-sq="{sq or ""}" data-me="{me or ""}" '
             f'data-st="{st or ""}" data-sr="{sr or ""}" data-al="{_html_mod.escape(al)}" '
             f'data-ci="{ci or ""}" data-so="{so or ""}" '
             f'data-alim="{alim if alim is not None else ""}" '
             f'data-relato="{nota_esc}" data-rj="{rj_esc}" data-ctx="{ctx_esc}">\u270f</button>'
-            f'<button class="act-btn del" style="padding:4px 8px;font-size:11px" onclick="delDay(\'{di}\')">\xd7</button>'
-            f'</div></div>'
+            f'<button class="act-btn del" style="padding:4px 8px;font-size:11px" onclick="event.preventDefault();delDay(\'{di}\')">\xd7</button>'
+            f'</div>'
+            f'</summary>'
+            f'<div class="hist-detail">{detail_html}</div>'
+            f'</details>'
         )
     body += '</div>'
 
@@ -1143,15 +1086,21 @@ async def dashboard_get():
 # ---------------------------------------------------------------------------
 
 @router.post("/dashboard/relato")
-async def dashboard_relato(texto: str = Form(...)):
+async def dashboard_relato(texto: str = Form(...), data: str = Form(default="")):
+    import re
+    if data and re.match(r"^\d{4}-\d{2}-\d{2}$", data):
+        from datetime import date as _date
+        data_alvo = _date.fromisoformat(data)
+    else:
+        data_alvo = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).date()
     try:
         pool = get_pool()
         async with pool.acquire() as conn:
             await conn.execute(
                 """INSERT INTO checkins (user_id, data, nota_raw)
-                   VALUES (1, (NOW() AT TIME ZONE 'America/Sao_Paulo')::date, $1)
+                   VALUES (1, $2, $1)
                    ON CONFLICT (user_id, data) DO UPDATE SET nota_raw=$1""",
-                texto,
+                texto, data_alvo,
             )
         try:
             analysis = await _process_nota_completa(texto)
@@ -1162,8 +1111,8 @@ async def dashboard_relato(texto: str = Form(...)):
                 async with pool.acquire() as conn:
                     await conn.execute(
                         "UPDATE checkins SET nota_sentimento=$1, nota_categorias=$2::jsonb, nota_resumo_ia=$3 "
-                        "WHERE user_id=1 AND data=(NOW() AT TIME ZONE 'America/Sao_Paulo')::date",
-                        sentimento, categorias, resumo_ia,
+                        "WHERE user_id=1 AND data=$4",
+                        sentimento, categorias, resumo_ia, data_alvo,
                     )
         except Exception:
             pass
