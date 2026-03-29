@@ -263,11 +263,11 @@ a{color:var(--primary);text-decoration:none}
 /* Contextos do dia */
 .ctx-wrap{margin:0 24px}
 .ctx-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
-.ctx-chip{background:var(--surface);border:1px solid var(--border);border-radius:20px;
+.ctx-chip,.chip{background:var(--surface);border:1px solid var(--border);border-radius:20px;
   padding:8px 14px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;
-  transition:all .15s;user-select:none}
-.ctx-chip.active{background:rgba(167,139,250,.2);border-color:var(--primary);color:var(--primary)}
-.ctx-chip:hover{border-color:var(--neutral)}
+  transition:all .15s;user-select:none;font-family:inherit}
+.ctx-chip.active,.chip.sel{background:rgba(167,139,250,.2);border-color:var(--primary);color:var(--primary)}
+.ctx-chip:hover,.chip:hover{border-color:var(--neutral)}
 .ctx-manage{font-size:11px;color:var(--text3);text-decoration:none;display:inline-block;margin-top:2px}
 .ctx-manage:hover{color:var(--primary)}
 
@@ -437,8 +437,8 @@ function openEdit(btn) {
   var ctx = d.ctx || '[]';
   var ctxArr = [];
   try { ctxArr = JSON.parse(ctx); } catch(e) {}
-  document.querySelectorAll('.ed-ctx-check').forEach(function(cb){
-    cb.checked = ctxArr.indexOf(cb.value) !== -1;
+  document.querySelectorAll('.ed-ctx-chip').forEach(function(btn){
+    btn.classList.toggle('sel', ctxArr.indexOf(btn.dataset.val) !== -1);
   });
   document.getElementById('modal').classList.add('open');
 }
@@ -453,8 +453,11 @@ function buildRemedJson(){
 }
 function buildCtxJson(){
   var arr=[];
-  document.querySelectorAll('.ed-ctx-check:checked').forEach(function(cb){ arr.push(cb.value); });
+  document.querySelectorAll('.ed-ctx-chip.sel').forEach(function(btn){ arr.push(btn.dataset.val); });
   document.getElementById('ed-ctx-json').value=JSON.stringify(arr);
+}
+function toggleCtxChip(btn){
+  btn.classList.toggle('sel');
 }
 function delDay(d){
   if(confirm('Remover o registro de '+d+'? Esta ação não pode ser desfeita.')){
@@ -593,7 +596,7 @@ function alimLabel(v){
   </div>
   <div class="modal-section">
     <div class="modal-section-title">&#128138; Relato</div>
-    <div class="field"><textarea name="nota_raw" id="ed-relato" placeholder="Texto do relato (opcional)"></textarea></div>
+    <div class="field"><textarea name="nota_raw" id="ed-relato" placeholder="O que marcou esse dia? Gatilhos, momentos, como você se sentiu..."></textarea></div>
   </div>
   <div class="modal-section">
     <div class="modal-section-title">&#128138; Remédios</div>
@@ -1110,11 +1113,8 @@ async def dashboard_get():
     for c in contextos_lista:
         lbl = c["label"]
         ctx_modal_html += (
-            f'<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer">'
-            f'<input type="checkbox" class="ed-ctx-check" value="{_html_mod.escape(lbl)}" '
-            f'style="accent-color:var(--primary)">'
-            f'{_html_mod.escape(lbl)}'
-            f'</label>'
+            f'<button type="button" class="ed-ctx-chip chip" data-val="{_html_mod.escape(lbl)}" '
+            f'onclick="toggleCtxChip(this)">{_html_mod.escape(lbl)}</button>'
         )
 
     return _render(body, remed_modal_html, ctx_modal_html)
@@ -1212,6 +1212,7 @@ async def dashboard_editar(
     stress_trabalho: str = Form(default=""),
     stress_relacionamento: str = Form(default=""),
     alcool: str = Form(default=""),
+    exercicio: str = Form(default=""),
     cigarros: str = Form(default=""),
     desempenho_social: str = Form(default=""),
     alimentacao: str = Form(default=""),
@@ -1239,17 +1240,17 @@ async def dashboard_editar(
             UPDATE checkins SET
               dor_fisica=$2, energia=$3, sono_horas=$4, sono_qualidade=$5,
               saude_mental=$6, stress_trabalho=$7, stress_relacionamento=$8,
-              alcool=$9, cigarros=$10, desempenho_social=$11,
-              remedios_tomados=COALESCE($12::jsonb, remedios_tomados),
-              alimentacao=$13,
-              nota_raw=CASE WHEN $14 != '' THEN $14 ELSE nota_raw END,
-              contextos_dia=$15::jsonb
+              alcool=$9, exercicio=$10, cigarros=$11, desempenho_social=$12,
+              remedios_tomados=COALESCE($13::jsonb, remedios_tomados),
+              alimentacao=$14,
+              nota_raw=CASE WHEN $15 != '' THEN $15 ELSE nota_raw END,
+              contextos_dia=$16::jsonb
             WHERE user_id=1 AND data=$1
             """,
             date.fromisoformat(data),
             _int(dor_fisica), _int(energia), _float(sono_horas), _int(sono_qualidade),
             _int(saude_mental), _int(stress_trabalho), _int(stress_relacionamento),
-            alcool.strip() or None, _int(cigarros), _int(desempenho_social),
+            alcool.strip() or None, exercicio.strip() or None, _int(cigarros), _int(desempenho_social),
             remed_json, _int(alimentacao), nota_raw.strip() or "", ctx_json,
         )
     return RedirectResponse("/dashboard", status_code=303)
