@@ -421,6 +421,7 @@ function openEdit(btn) {
   document.getElementById('ed-ci').value   = d.ci   || '';
   document.getElementById('ed-so').value   = d.so   || '';
   document.getElementById('ed-alim').value = d.alim || '';
+  document.getElementById('ed-ex').value   = d.ex   || '';
   document.getElementById('ed-relato').value = d.relato || '';
   // Remédios
   var rj = d.rj || '[]';
@@ -588,6 +589,7 @@ function alimLabel(v){
     <div class="field"><label>&#10006; Cigarros</label><input name="cigarros" id="ed-ci" type="number" min="0"></div>
     <div class="field"><label>&#9728; Social</label><input name="desempenho_social" id="ed-so" type="number" min="0" max="10"></div>
     <div class="field"><label>&#127803; Alimentação (0-10)</label><input name="alimentacao" id="ed-alim" type="number" min="0" max="10"></div>
+    <div class="field"><label>&#9654; Exercício</label><input name="exercicio" id="ed-ex" type="text" placeholder="Nenhum / Leve / Moderado / Intenso"></div>
   </div>
   <div class="modal-section">
     <div class="modal-section-title">&#128138; Relato</div>
@@ -702,6 +704,7 @@ async def dashboard_get():
             f'data-al="{checkin_hoje["alcool"] or ""}" '
             f'data-ci="{checkin_hoje["cigarros"] or ""}" '
             f'data-so="{checkin_hoje["desempenho_social"] or ""}" '
+            f'data-ex="{checkin_hoje["exercicio"] or ""}" '
             f'data-alim="{checkin_hoje["alimentacao"] if checkin_hoje["alimentacao"] is not None else ""}" '
             f'data-relato="{_html_mod.escape(checkin_hoje["nota_raw"] or "")}" '
             f'data-rj="{_html_mod.escape(_json.dumps(checkin_hoje["remedios_tomados"] if isinstance(checkin_hoje["remedios_tomados"], list) else (_json.loads(checkin_hoje["remedios_tomados"]) if checkin_hoje["remedios_tomados"] else []))  )}" '
@@ -1056,7 +1059,7 @@ async def dashboard_get():
             f'data-data="{di}" data-dor="{dor or ""}" data-en="{en or ""}" '
             f'data-sh="{sh or ""}" data-sq="{sq or ""}" data-me="{me or ""}" '
             f'data-st="{st or ""}" data-sr="{sr or ""}" data-al="{_html_mod.escape(al)}" '
-            f'data-ci="{ci or ""}" data-so="{so or ""}" '
+            f'data-ci="{ci or ""}" data-so="{so or ""}" data-ex="{_html_mod.escape(ex)}" '
             f'data-alim="{alim if alim is not None else ""}" '
             f'data-relato="{nota_esc}" data-rj="{rj_esc}" data-ctx="{ctx_esc}">\u270f</button>'
             f'<button class="act-btn del" style="padding:4px 8px;font-size:11px" onclick="event.preventDefault();delDay(\'{di}\')">\xd7</button>'

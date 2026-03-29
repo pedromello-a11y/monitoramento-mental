@@ -509,26 +509,29 @@ async def checkin_web_post(
                 """,
                 user_id, data_alvo,
             )
-            # Atualizar streak apenas para check-in de hoje
-            if data_alvo == hoje:
+            # Recalcular streak contando dias consecutivos a partir de hoje para trás
+            datas = await conn.fetch(
+                "SELECT data FROM checkins WHERE user_id = $1 ORDER BY data DESC",
+                user_id,
+            )
+            datas_set = {r["data"] for r in datas}
+            streak_calc = 0
+            d = hoje
+            while d in datas_set:
+                streak_calc += 1
+                d = d - timedelta(days=1)
+            ultimo = hoje if hoje in datas_set else None
+            if streak_calc > 0:
+                row_s = await conn.fetchrow("SELECT streak_maximo FROM streak WHERE user_id = $1", user_id)
+                s_max = max(streak_calc, row_s["streak_maximo"] if row_s else 0)
                 await conn.execute(
                     """
                     INSERT INTO streak (user_id, streak_atual, streak_maximo, ultimo_checkin, atualizado_em)
-                    VALUES ($1, 1, 1, $2, NOW())
+                    VALUES ($1, $2, $3, $4, NOW())
                     ON CONFLICT (user_id) DO UPDATE
-                    SET streak_atual = CASE
-                            WHEN streak.ultimo_checkin = $3 THEN streak.streak_atual + 1
-                            ELSE 1
-                        END,
-                        streak_maximo = GREATEST(streak.streak_maximo,
-                            CASE
-                                WHEN streak.ultimo_checkin = $3 THEN streak.streak_atual + 1
-                                ELSE 1
-                            END),
-                        ultimo_checkin = $2,
-                        atualizado_em = NOW()
+                    SET streak_atual = $2, streak_maximo = $3, ultimo_checkin = $4, atualizado_em = NOW()
                     """,
-                    user_id, hoje, ontem,
+                    user_id, streak_calc, s_max, ultimo,
                 )
     except Exception as e:
         err_inner = (
@@ -540,4 +543,5 @@ async def checkin_web_post(
         )
         return HTMLResponse(_BASE_PAGE.format(inner=err_inner), status_code=503)
 
-    return HTMLResponse(_SUCCESS_HTML)
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/dashboard", status_code=303)
