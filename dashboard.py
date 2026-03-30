@@ -18,7 +18,7 @@ router = APIRouter()
 def _score_color(v, invert=False):
     if v is None:
         return "#4A4A5A"
-    pct = float(v) / 10
+    pct = float(v) / 5
     if invert:
         if pct <= 0.3: return "#86EFAC"
         if pct <= 0.6: return "#FCD34D"
@@ -45,17 +45,17 @@ def _trend(rows, field):
 def _hero_frase(mental, energia, dor):
     if mental is None:
         return "Seus dados v\xe3o aparecer aqui depois do pr\xf3ximo check-in."
-    m, e = float(mental), float(energia) if energia is not None else 5
-    d = float(dor) if dor is not None else 0
-    if m >= 8 and e >= 7:
+    m, e = float(mental), float(energia) if energia is not None else 3
+    d = float(dor) if dor is not None else 1
+    if m >= 4 and e >= 4:
         return "Voc\xea esteve bem hoje. Isso importa."
-    if m >= 6 and d <= 3:
+    if m >= 3 and d <= 2:
         return "Um dia razo\xe1vel. Voc\xea est\xe1 acompanhando."
-    if m <= 4 and d >= 6:
+    if m <= 2 and d >= 4:
         return "Foi um dia mais pesado. Tudo registrado, tudo bem."
-    if m <= 4:
+    if m <= 2:
         return "Nem todo dia \xe9 f\xe1cil. Voc\xea est\xe1 aqui, isso j\xe1 \xe9 algo."
-    if d >= 7:
+    if d >= 4:
         return "Seu corpo pediu aten\xe7\xe3o hoje. Registrado."
     return "Mais um dia acompanhado. Obrigado por estar aqui."
 
@@ -111,9 +111,9 @@ def _dot_color(mental):
     if mental is None:
         return "#2A2A38"
     v = float(mental)
-    if v >= 7: return "#86EFAC"
-    if v >= 5: return "#A78BFA"
-    if v >= 3: return "#FCD34D"
+    if v >= 4: return "#86EFAC"
+    if v >= 3: return "#A78BFA"
+    if v >= 2: return "#FCD34D"
     return "#FCA5A5"
 
 def _badge(val, invert=False):
@@ -123,7 +123,7 @@ def _badge(val, invert=False):
     bg = color + "22"
     return f'<span class="badge" style="background:{bg};color:{color}">{val}</span>'
 
-def _dim_row(label, val, max_val=10, invert=False):
+def _dim_row(label, val, max_val=5, invert=False):
     if val is None or val == "":
         return f'<div class="dim-row"><span class="dim-lbl">{label}</span><span style="color:#4A4A5A;font-size:13px">\u2014</span></div>'
     v = float(val)
@@ -141,10 +141,10 @@ def _dim_row(label, val, max_val=10, invert=False):
 def _alim_label(v):
     if v is None:
         return "\u2014"
-    if v <= 2: return "Besteira"
-    if v <= 4: return "Ruim"
-    if v <= 6: return "Regular"
-    if v <= 8: return "Boa"
+    if v <= 1: return "Besteira"
+    if v <= 2: return "Ruim"
+    if v <= 3: return "Regular"
+    if v <= 4: return "Boa"
     return "Saud\xe1vel"
 
 # ---------------------------------------------------------------------------
@@ -317,6 +317,10 @@ a{color:var(--primary);text-decoration:none}
 .medias-section-label::-webkit-details-marker{display:none}
 .medias-section[open] .medias-toggle-icon{transform:rotate(180deg)}
 .medias-toggle-icon{font-size:11px;color:var(--text3);transition:transform .2s}
+.trend-section{margin:0}
+.trend-section-label::-webkit-details-marker{display:none}
+.trend-section[open] .trend-toggle-icon{transform:rotate(180deg)}
+.trend-toggle-icon{font-size:11px;color:var(--text3);transition:transform .2s}
 
 /* Gráfico de tendências */
 .chart-card{margin:0 24px;background:var(--surface);border-radius:16px;padding:16px 20px;border:1px solid var(--border)}
@@ -588,7 +592,7 @@ function alimInput(v){
 }
 function alimLabel(v){
   v=parseInt(v);
-  if(v<=2)return'Besteira';if(v<=4)return'Ruim';if(v<=6)return'Regular';if(v<=8)return'Boa';return'Saudável';
+  if(v<=1)return'Besteira';if(v<=2)return'Ruim';if(v<=3)return'Regular';if(v<=4)return'Boa';return'Saudável';
 }
 </script>
 <!-- Modal editar -->
@@ -598,17 +602,17 @@ function alimLabel(v){
   <form method="post" action="/dashboard/editar">
   <input type="hidden" name="data" id="ed-data">
   <div class="field-grid">
-    <div class="field"><label>&#10024; Saúde mental</label><input name="saude_mental" id="ed-me" type="number" min="0" max="10"></div>
-    <div class="field"><label>&#9889; Energia</label><input name="energia" id="ed-en" type="number" min="0" max="10"></div>
-    <div class="field"><label>&#10084; Dor física</label><input name="dor_fisica" id="ed-dor" type="number" min="0" max="10"></div>
+    <div class="field"><label>&#10024; Humor</label><input name="saude_mental" id="ed-me" type="number" min="1" max="5"></div>
+    <div class="field"><label>&#9889; Energia</label><input name="energia" id="ed-en" type="number" min="1" max="5"></div>
+    <div class="field"><label>&#10084; Dor física</label><input name="dor_fisica" id="ed-dor" type="number" min="1" max="5"></div>
     <div class="field"><label>&#9733; Sono (horas)</label><input name="sono_horas" id="ed-sh" type="number" min="0" max="16" step="0.5"></div>
-    <div class="field"><label>&#9693; Sono qualidade</label><input name="sono_qualidade" id="ed-sq" type="number" min="0" max="10"></div>
-    <div class="field"><label>&#9200; Stress trabalho</label><input name="stress_trabalho" id="ed-st" type="number" min="0" max="10"></div>
-    <div class="field"><label>&#9829; Stress rel.</label><input name="stress_relacionamento" id="ed-sr" type="number" min="0" max="10"></div>
+    <div class="field"><label>&#9693; Sono qualidade</label><input name="sono_qualidade" id="ed-sq" type="number" min="1" max="5"></div>
+    <div class="field"><label>&#9200; Stress trabalho</label><input name="stress_trabalho" id="ed-st" type="number" min="1" max="5"></div>
+    <div class="field"><label>&#9829; Stress rel.</label><input name="stress_relacionamento" id="ed-sr" type="number" min="1" max="5"></div>
     <div class="field"><label>&#9749; Álcool</label><input name="alcool" id="ed-al" type="text" placeholder="Nenhum / Pouco / Moderado / Muito"></div>
     <div class="field"><label>&#10006; Cigarros</label><input name="cigarros" id="ed-ci" type="number" min="0"></div>
-    <div class="field"><label>&#9728; Social</label><input name="desempenho_social" id="ed-so" type="number" min="0" max="10"></div>
-    <div class="field"><label>&#127803; Alimentação (0-10)</label><input name="alimentacao" id="ed-alim" type="number" min="0" max="10"></div>
+    <div class="field"><label>&#9728; Social</label><input name="desempenho_social" id="ed-so" type="number" min="1" max="5"></div>
+    <div class="field"><label>&#127803; Alimentação (1-5)</label><input name="alimentacao" id="ed-alim" type="number" min="1" max="5"></div>
     <div class="field"><label>&#9654; Exercício</label><select name="exercicio" id="ed-ex" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;padding:10px 12px;font-family:inherit;outline:none"><option value="Nenhum">Nenhum</option><option value="Leve">Leve</option><option value="Moderado">Moderado</option><option value="Intenso">Intenso</option></select></div>
   </div>
   <div class="modal-section">
@@ -778,10 +782,10 @@ async def dashboard_get():
     body += f"""
 <div class="hero">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-    <div class="hero-label" style="padding:0;margin:0">Sa\xfade mental \u2014 {data_display}</div>
+    <div class="hero-label" style="padding:0;margin:0">Humor \u2014 {data_display}</div>
     {checkin_status}
   </div>
-  <div class="hero-score" style="color:{score_color}">{score_display}<span> /10</span></div>
+  <div class="hero-score" style="color:{score_color};font-size:80px;font-weight:900;line-height:1">{score_display}<span style="font-size:22px;font-weight:500;opacity:.6"> /5</span></div>
   <div class="hero-frase">{frase}</div>
   {f'<div class="hero-meta">{chips}</div>' if chips else ''}
 </div>"""
@@ -850,14 +854,14 @@ async def dashboard_get():
 <div class="dim-grid">
   <div class="dim-card">
     <div class="dim-title">\u2728 Mental &amp; Emocional</div>
-    {_dim_row("Sa\xfade mental", m["mental"] if m else None)}
+    {_dim_row("Humor", m["mental"] if m else None)}
     {_dim_row("Stress trabalho", m["stress_t"] if m else None, invert=True)}
     {_dim_row("Stress rel.", m["stress_r"] if m else None, invert=True)}
   </div>
   <div class="dim-card">
     <div class="dim-title">\u26a1 Energia &amp; Sono</div>
     {_dim_row("Energia", m["energia"] if m else None)}
-    {_dim_row("Sono (h)", m["sono_h"] if m else None, max_val=10)}
+    {_dim_row("Sono (h)", m["sono_h"] if m else None, max_val=16)}
     {_dim_row("Qualidade sono", m["sono_q"] if m else None)}
   </div>
   <div class="dim-card">
@@ -867,7 +871,7 @@ async def dashboard_get():
   </div>
   <div class="dim-card">
     <div class="dim-title">\u2615 H\xe1bitos</div>
-    {_dim_row("Cigarros/dia", m["cigarros"] if m else None, max_val=10, invert=True)}
+    {_dim_row("Cigarros/dia", m["cigarros"] if m else None, max_val=20, invert=True)}
     <div class="dim-row"><span class="dim-lbl">\xc1lcool (freq.)</span><span style="font-size:13px;font-weight:600;color:var(--text)">{alcool_display}</span></div>
   </div>
 </div>
@@ -877,13 +881,16 @@ async def dashboard_get():
     # ---- Exercício (histórico 7 dias) ----
     EX_CORES = {"Nenhum": "#2A2A38", "Leve": "#FCD34D", "Moderado": "#86EFAC", "Intenso": "#A78BFA"}
     EX_ALTURA = {"Nenhum": 4, "Leve": 16, "Moderado": 28, "Intenso": 40}
+    EX_ICONE = {"Nenhum": "", "Leve": "\U0001f6b6", "Moderado": "\U0001f3c3", "Intenso": "\U0001f3c3\U0001f525"}
     ex_html = ""
     for r in list(reversed(rows))[-7:]:
         ex_val = r["exercicio"] or "Nenhum"
         cor = EX_CORES.get(ex_val, "#2A2A38")
         altura = EX_ALTURA.get(ex_val, 4)
+        icone = EX_ICONE.get(ex_val, "")
         ds_ex = r["data"].strftime("%d/%m")
-        ex_html += f'<div class="ex-day"><div class="ex-bar" style="height:{altura}px;background:{cor}"></div><div class="ex-day-lbl">{ds_ex}</div><div class="ex-intensidade">{ex_val}</div></div>'
+        icone_html = f'<div style="font-size:13px;line-height:1">{icone}</div>' if icone else '<div style="font-size:13px;line-height:1;opacity:0">\U0001f6b6</div>'
+        ex_html += f'<div class="ex-day">{icone_html}<div class="ex-bar" style="height:{altura}px;background:{cor}"></div><div class="ex-day-lbl">{ds_ex}</div></div>'
     body += f"""
 <div class="sec-label">Exerc\xedcio</div>
 <div class="ex-card">
@@ -920,10 +927,11 @@ async def dashboard_get():
     chart_rivotril = _remed_series("Rivotril")
     chart_zolpidem = _remed_series("Zolpidem")
     body += f"""
-<div class="sec-label" style="padding-top:16px">Tend\xeancia</div>
+<details class="trend-section" open>
+<summary class="sec-label trend-section-label" style="padding-top:16px;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">Tend\xeancia<span class="trend-toggle-icon">&#9660;</span></summary>
 <div class="chart-card">
   <div class="chart-toggles" id="chart-toggles">
-    <button class="chart-toggle on" data-serie="mental"    style="border-color:#86EFAC;background:#86EFAC22;color:#86EFAC"  onclick="toggleSerie(this)">Mental</button>
+    <button class="chart-toggle on" data-serie="mental"    style="border-color:#86EFAC;background:#86EFAC22;color:#86EFAC"  onclick="toggleSerie(this)">Humor</button>
     <button class="chart-toggle on" data-serie="energia"   style="border-color:#FCD34D;background:#FCD34D22;color:#FCD34D"  onclick="toggleSerie(this)">Energia</button>
     <button class="chart-toggle on" data-serie="sono"      style="border-color:#A78BFA;background:#A78BFA22;color:#A78BFA"  onclick="toggleSerie(this)">Sono (h)</button>
     <button class="chart-toggle"    data-serie="sono_q"    style="border-color:#7DD3FC;background:var(--surface2);color:var(--text3)"  onclick="toggleSerie(this)">Sono qual.</button>
@@ -957,7 +965,7 @@ async def dashboard_get():
     rivotril:"#C084FC", zolpidem:"#67E8F9"
   }};
   var names = {{
-    mental:"Mental", energia:"Energia", sono:"Sono (h)", sono_q:"Sono qual.",
+    mental:"Humor", energia:"Energia", sono:"Sono (h)", sono_q:"Sono qual.",
     dor:"Dor", stress_t:"Stress trab.", stress_r:"Stress rel.", social:"Social",
     rivotril:"Rivotril", zolpidem:"Zolpidem"
   }};
@@ -991,7 +999,7 @@ async def dashboard_get():
       }},
       scales: {{
         x: {{ ticks: {{ color:"#94A3B8", font:{{size:11}} }}, grid:{{ color:"#2A2A38" }} }},
-        y: {{ min:0, ticks:{{ color:"#94A3B8", font:{{size:11}}, stepSize:2 }}, grid:{{ color:"#2A2A38" }} }}
+        y: {{ min:0, ticks:{{ color:"#94A3B8", font:{{size:11}}, stepSize:1 }}, grid:{{ color:"#2A2A38" }} }}
       }}
     }}
   }});
@@ -1012,7 +1020,8 @@ async def dashboard_get():
     chart.update();
   }};
 }})();
-</script>"""
+</script>
+</details>"""
 
     REMED_PRIORITARIOS = {"rivotril", "zolpidem"}
     hist_doses = {}
@@ -1059,6 +1068,20 @@ async def dashboard_get():
         baseline = next((float(r["dose_padrao"] or 1) for r in remedios_padrao if r["nome"].lower() == nome_prio.lower()), 1)
         max_dose = max((d[1] for d in doses), default=baseline) or 1
 
+        # média geral e comparação com hoje
+        media_doses = (sum(d[1] for d in doses) / len(doses)) if doses else None
+        if media_doses is not None and dose_hoje_val is not None:
+            diff = dose_hoje_val - media_doses
+            if abs(diff) < 0.1:
+                comp_html = '<span style="font-size:11px;color:#94A3B8">\u2022 na m\xe9dia</span>'
+            elif diff > 0:
+                comp_html = f'<span style="font-size:11px;color:#FCA5A5">\u2191 +{diff:.1g} vs m\xe9dia</span>'
+            else:
+                comp_html = f'<span style="font-size:11px;color:#86EFAC">\u2193 {diff:.1g} vs m\xe9dia</span>'
+        else:
+            comp_html = ""
+        media_display = f'{media_doses:.1f}' if media_doses is not None else "\u2014"
+
         barras = ""
         doses_crono = list(reversed(doses[:7]))
         for i, (ds_r, qtd) in enumerate(doses_crono):
@@ -1073,9 +1096,13 @@ async def dashboard_get():
   <div style="display:flex;align-items:center;justify-content:space-between">
     <div class="remed-priority-dose" id="remed-qtd-{nome_prio}">{dose_display}<span> comp.</span></div>
     <div style="display:flex;gap:6px">
-      <button class="remed-upd-btn" onclick="remedUpdate('{nome_prio}',-0.5)">&#8722;</button>
-      <button class="remed-upd-btn remed-upd-plus" onclick="remedUpdate('{nome_prio}',0.5)">+</button>
+      <button class="remed-upd-btn" onclick="remedUpdate('{nome_prio}',-1)">&#8722;</button>
+      <button class="remed-upd-btn remed-upd-plus" onclick="remedUpdate('{nome_prio}',1)">+</button>
     </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;margin:4px 0 2px">
+    <span style="font-size:11px;color:var(--text3)">m\xe9dia: {media_display} comp.</span>
+    {comp_html}
   </div>
   <div class="remed-priority-hist">{hist_inner}</div>
   <div class="remed-baseline">padr\xe3o: {baseline:g} comp.</div>
@@ -1137,7 +1164,7 @@ async def dashboard_get():
 
         me_c = _score_color(me) if me is not None else "#4A4A5A"
         chips_h = ""
-        if me is not None: chips_h += f'<span class="hist-chip" style="color:{me_c}">mental {me}</span>'
+        if me is not None: chips_h += f'<span class="hist-chip" style="color:{me_c}">humor {me}</span>'
         if en is not None: chips_h += f'<span class="hist-chip">energia {en}</span>'
         if sh is not None: chips_h += f'<span class="hist-chip">sono {sh}h</span>'
         if dor is not None: chips_h += f'<span class="hist-chip">dor {dor}</span>'
@@ -1237,7 +1264,7 @@ async def dashboard_get():
     for rp in remedios_padrao:
         nome = rp["nome"]
         dp = float(rp["dose_padrao"] or 1)
-        step = "0.5" if rp["tipo"] == "quantidade" else "1"
+        step = "1"
         remed_modal_html += (
             f'<div style="display:flex;align-items:center;justify-content:space-between;'
             f'background:var(--surface2);border-radius:10px;padding:8px 12px">'
@@ -1479,7 +1506,7 @@ async def dashboard_contexto_toggle(label: str = Form(...)):
 
 @router.post("/dashboard/alimentacao-atualizar")
 async def dashboard_alimentacao_atualizar(valor: int = Form(...)):
-    valor = max(0, min(10, valor))
+    valor = max(1, min(5, valor))
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(

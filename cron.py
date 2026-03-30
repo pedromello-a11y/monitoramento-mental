@@ -204,6 +204,41 @@ async def migrate_remedios_doses(x_cron_secret: str | None = Header(default=None
     return {"status": "ok", "remedios": [dict(r) for r in rows]}
 
 
+@router.post("/internal/migrate/escala-1-5")
+async def migrate_escala_1_5(x_cron_secret: str | None = Header(default=None)):
+    """Converte dados históricos de escala 0-10 para 1-5 (floor(v/2), mínimo 1)."""
+    _check_secret(x_cron_secret)
+    pool = get_pool()
+    campos = ["dor_fisica", "energia", "sono_qualidade", "saude_mental",
+              "stress_trabalho", "stress_relacionamento", "desempenho_social", "alimentacao"]
+    async with pool.acquire() as conn:
+        for campo in campos:
+            await conn.execute(f"""
+                UPDATE checkins
+                SET {campo} = GREATEST(1, FLOOR({campo}::numeric / 2))
+                WHERE user_id = 1
+                  AND {campo} IS NOT NULL
+                  AND {campo} > 5
+            """)
+        row = await conn.fetchrow("SELECT COUNT(*) AS total FROM checkins WHERE user_id=1")
+    return {"status": "ok", "registros": row["total"], "campos_migrados": campos}
+
+
+@router.post("/internal/migrate/contextos-seed")
+async def migrate_contextos_seed(x_cron_secret: str | None = Header(default=None)):
+    _check_secret(x_cron_secret)
+    pool = get_pool()
+    novos = ["Hora extra", "Terapia"]
+    async with pool.acquire() as conn:
+        for label in novos:
+            await conn.execute(
+                "INSERT INTO contextos_config (user_id, label, ordem) VALUES (1, $1, 99) ON CONFLICT DO NOTHING",
+                label,
+            )
+        rows = await conn.fetch("SELECT id, label, ativo FROM contextos_config WHERE user_id=1 ORDER BY ordem, id")
+    return {"status": "ok", "contextos": [dict(r) for r in rows]}
+
+
 @router.post("/internal/cron/cleanup-sessoes")
 async def cron_cleanup(x_cron_secret: str | None = Header(default=None)):
     _check_secret(x_cron_secret)

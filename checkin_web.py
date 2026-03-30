@@ -10,19 +10,19 @@ router = APIRouter()
 # ─── steps definition (injected as JSON to avoid emoji encoding in JS) ────────
 
 _STEPS = [
-    {"f": "dor_fisica",            "q": "\U0001FA7A Dor f\xEDsica hoje",              "h": "0 = nenhuma \xB7 10 = incapacitante",         "t": "scale",   "d": 0},
-    {"f": "energia",               "q": "\u26A1 Como est\xE1 sua energia?",           "h": "0 = esgotado \xB7 10 = muita energia",        "t": "scale",   "d": 5},
+    {"f": "dor_fisica",            "q": "\U0001FA7A Dor f\xEDsica hoje",              "h": "1 = nenhuma \xB7 5 = incapacitante",          "t": "scale",   "d": 1},
+    {"f": "energia",               "q": "\u26A1 Como est\xE1 sua energia?",           "h": "1 = esgotado \xB7 5 = muita energia",         "t": "scale",   "d": 3},
     {"f": "sono_horas",            "q": "\U0001F634 Horas de sono",                   "h": "Horas reais dormidas",                        "t": "sono",    "d": 7},
-    {"f": "sono_qualidade",        "q": "\U0001F634 Qualidade do sono",               "h": "0 = acordou destru\xEDdo \xB7 10 = \xF3timo", "t": "scale",   "d": 5},
-    {"f": "saude_mental",          "q": "\U0001F9E0 Sa\xFAde mental hoje",            "h": "0 = dia muito dif\xEDcil \xB7 10 = excelente", "t": "scale",   "d": 5},
-    {"f": "stress_trabalho",       "q": "\U0001F4BC Stress no trabalho",              "h": "0 = nenhum \xB7 10 = dia dominado",           "t": "scale",   "d": 0},
-    {"f": "stress_relacionamento", "q": "\u2764\uFE0F Stress nos relacionamentos",    "h": "0 = nenhum \xB7 10 = muito pesado",           "t": "scale",   "d": 0},
+    {"f": "sono_qualidade",        "q": "\U0001F634 Qualidade do sono",               "h": "1 = acordou destru\xEDdo \xB7 5 = \xF3timo",  "t": "scale",   "d": 3},
+    {"f": "saude_mental",          "q": "\U0001F9E0 Humor hoje",                      "h": "1 = dia muito dif\xEDcil \xB7 5 = excelente",  "t": "scale",   "d": 3},
+    {"f": "stress_trabalho",       "q": "\U0001F4BC Stress no trabalho",              "h": "1 = nenhum \xB7 5 = dia dominado",            "t": "scale",   "d": 1},
+    {"f": "stress_relacionamento", "q": "\u2764\uFE0F Stress nos relacionamentos",    "h": "1 = nenhum \xB7 5 = muito pesado",            "t": "scale",   "d": 1},
     {"f": "alcool",                "q": "\U0001F37A \xC1lcool hoje",                  "h": "",                                            "t": "chips",   "d": "Nenhum",
      "o": ["Nenhum", "Pouco", "Moderado", "Muito"]},
     {"f": "cigarros",              "q": "\U0001F6AC Cigarros hoje",                   "h": "N\xFAmero de cigarros",                       "t": "cig",     "d": 2},
     {"f": "exercicio",             "q": "\u25B6 Exerc\xEDcio hoje",                   "h": "",                                            "t": "chips",   "d": "Nenhum",
      "o": ["Nenhum", "Leve", "Moderado", "Intenso"]},
-    {"f": "desempenho_social",     "q": "\U0001F465 Desempenho social",               "h": "0 = em casa o dia todo \xB7 10 = muito ativo", "t": "scale",   "d": 5},
+    {"f": "desempenho_social",     "q": "\U0001F465 Desempenho social",               "h": "1 = em casa o dia todo \xB7 5 = muito ativo",  "t": "scale",   "d": 3},
     {"f": "remedios_tomados",      "q": "\U0001F48A Rem\xE9dios de hoje",             "h": "Marque o que tomou",                          "t": "remedios", "d": []},
 ]
 
@@ -195,7 +195,7 @@ function render(){
 
   if(s.t==='scale'){
     h+='<div class="scale-grid">';
-    for(var i=0;i<=10;i++){
+    for(var i=1;i<=5;i++){
       var sel=vals[s.f]===i?' sel':'';
       h+='<button type="button" class="btn'+sel+'" onclick="pick('+i+')">'+i+'</button>';
     }
