@@ -905,6 +905,20 @@ async def dashboard_get():
     chart_stress_t= _chart_series("stress_trabalho")
     chart_stress_r= _chart_series("stress_relacionamento")
     chart_social  = _chart_series("desempenho_social")
+    # doses de remédios por dia
+    def _remed_series(nome_remed, rows_=chart_rows):
+        out = []
+        for r in rows_:
+            rj = r["remedios_tomados"]
+            try:
+                itens = (rj if isinstance(rj, list) else _json2.loads(rj)) if rj else []
+                val = next((float(i.get("qtd", 0)) for i in itens if i.get("nome","").lower() == nome_remed.lower() and i.get("tomado")), None)
+            except Exception:
+                val = None
+            out.append(val)
+        return _json2.dumps(out)
+    chart_rivotril = _remed_series("Rivotril")
+    chart_zolpidem = _remed_series("Zolpidem")
     body += f"""
 <div class="sec-label" style="padding-top:16px">Tend\xeancia</div>
 <div class="chart-card">
@@ -917,6 +931,8 @@ async def dashboard_get():
     <button class="chart-toggle"    data-serie="stress_t"  style="border-color:#F97316;background:var(--surface2);color:var(--text3)"  onclick="toggleSerie(this)">Stress trab.</button>
     <button class="chart-toggle"    data-serie="stress_r"  style="border-color:#FB923C;background:var(--surface2);color:var(--text3)"  onclick="toggleSerie(this)">Stress rel.</button>
     <button class="chart-toggle"    data-serie="social"    style="border-color:#34D399;background:var(--surface2);color:var(--text3)"  onclick="toggleSerie(this)">Social</button>
+    <button class="chart-toggle"    data-serie="rivotril"  style="border-color:#C084FC;background:var(--surface2);color:var(--text3)"  onclick="toggleSerie(this)">Rivotril</button>
+    <button class="chart-toggle"    data-serie="zolpidem"  style="border-color:#67E8F9;background:var(--surface2);color:var(--text3)"  onclick="toggleSerie(this)">Zolpidem</button>
   </div>
   <canvas id="trend-chart" height="160"></canvas>
 </div>
@@ -931,15 +947,19 @@ async def dashboard_get():
     dor:      {chart_dor},
     stress_t: {chart_stress_t},
     stress_r: {chart_stress_r},
-    social:   {chart_social}
+    social:   {chart_social},
+    rivotril: {chart_rivotril},
+    zolpidem: {chart_zolpidem}
   }};
   var colors = {{
     mental:"#86EFAC", energia:"#FCD34D", sono:"#A78BFA", sono_q:"#7DD3FC",
-    dor:"#FCA5A5", stress_t:"#F97316", stress_r:"#FB923C", social:"#34D399"
+    dor:"#FCA5A5", stress_t:"#F97316", stress_r:"#FB923C", social:"#34D399",
+    rivotril:"#C084FC", zolpidem:"#67E8F9"
   }};
   var names = {{
     mental:"Mental", energia:"Energia", sono:"Sono (h)", sono_q:"Sono qual.",
-    dor:"Dor", stress_t:"Stress trab.", stress_r:"Stress rel.", social:"Social"
+    dor:"Dor", stress_t:"Stress trab.", stress_r:"Stress rel.", social:"Social",
+    rivotril:"Rivotril", zolpidem:"Zolpidem"
   }};
   var active = {{"mental":true,"energia":true,"sono":true}};
 
@@ -971,7 +991,7 @@ async def dashboard_get():
       }},
       scales: {{
         x: {{ ticks: {{ color:"#94A3B8", font:{{size:11}} }}, grid:{{ color:"#2A2A38" }} }},
-        y: {{ min:0, max:10, ticks:{{ color:"#94A3B8", font:{{size:11}}, stepSize:2 }}, grid:{{ color:"#2A2A38" }} }}
+        y: {{ min:0, ticks:{{ color:"#94A3B8", font:{{size:11}}, stepSize:2 }}, grid:{{ color:"#2A2A38" }} }}
       }}
     }}
   }});
