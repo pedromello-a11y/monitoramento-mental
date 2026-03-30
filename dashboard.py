@@ -308,11 +308,21 @@ a{color:var(--primary);text-decoration:none}
 .heatmap{display:flex;flex-wrap:wrap;gap:4px}
 .dot{width:12px;height:12px;border-radius:3px;flex-shrink:0}
 
-/* Histórico colapsável */
+/* Seções colapsáveis (médias, histórico) */
 .hist-section{margin:0}
 .hist-section-label::-webkit-details-marker{display:none}
 .hist-section[open] .hist-toggle-icon{transform:rotate(180deg)}
 .hist-toggle-icon{font-size:11px;color:var(--text3);transition:transform .2s}
+.medias-section{margin:0}
+.medias-section-label::-webkit-details-marker{display:none}
+.medias-section[open] .medias-toggle-icon{transform:rotate(180deg)}
+.medias-toggle-icon{font-size:11px;color:var(--text3);transition:transform .2s}
+
+/* Gráfico de tendências */
+.chart-card{margin:0 24px;background:var(--surface);border-radius:16px;padding:16px 20px;border:1px solid var(--border)}
+.chart-toggles{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.chart-toggle{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid transparent;background:var(--surface2);color:var(--text3);transition:all .15s}
+.chart-toggle.on{color:#fff}
 
 /* Histórico compacto */
 .hist-compact{margin:0 24px;display:flex;flex-direction:column;gap:1px}
@@ -407,6 +417,7 @@ _HTML_SHELL = """<!DOCTYPE html>
 <title>Monitoramento Mental</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>CSS_PLACEHOLDER</style>
 </head>
 <body>
@@ -834,7 +845,8 @@ async def dashboard_get():
     alcool_display = alcool_moda or "\u2014"
 
     body += f"""
-<div class="sec-label">M\xe9dia da semana</div>
+<details class="medias-section" open>
+<summary class="sec-label medias-section-label" style="padding-top:16px;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between">M\xe9dia da semana<span class="medias-toggle-icon">&#9660;</span></summary>
 <div class="dim-grid">
   <div class="dim-card">
     <div class="dim-title">\u2728 Mental &amp; Emocional</div>
@@ -858,7 +870,8 @@ async def dashboard_get():
     {_dim_row("Cigarros/dia", m["cigarros"] if m else None, max_val=10, invert=True)}
     <div class="dim-row"><span class="dim-lbl">\xc1lcool (freq.)</span><span style="font-size:13px;font-weight:600;color:var(--text)">{alcool_display}</span></div>
   </div>
-</div>"""
+</div>
+</details>"""
 
     # ---- Remédios prioritários ----
     # ---- Exercício (histórico 7 dias) ----
@@ -877,6 +890,109 @@ async def dashboard_get():
   <div class="ex-title">Intensidade \u2014 7 dias</div>
   <div class="ex-week">{ex_html}</div>
 </div>"""
+
+    # ---- Gráfico de tendências ----
+    import json as _json2
+    chart_rows = list(reversed(rows))  # cronológico: mais antigo primeiro
+    chart_labels = _json2.dumps([r["data"].strftime("%d/%m") for r in chart_rows])
+    def _chart_series(field, rows_=chart_rows):
+        return _json2.dumps([float(r[field]) if r[field] is not None else None for r in rows_])
+    chart_mental  = _chart_series("saude_mental")
+    chart_energia = _chart_series("energia")
+    chart_sono    = _chart_series("sono_horas")
+    chart_sono_q  = _chart_series("sono_qualidade")
+    chart_dor     = _chart_series("dor_fisica")
+    chart_stress_t= _chart_series("stress_trabalho")
+    chart_stress_r= _chart_series("stress_relacionamento")
+    chart_social  = _chart_series("desempenho_social")
+    body += f"""
+<div class="sec-label" style="padding-top:16px">Tend\xeancia</div>
+<div class="chart-card">
+  <div class="chart-toggles" id="chart-toggles">
+    <button class="chart-toggle on" data-serie="mental"    style="border-color:#86EFAC;background:#86EFAC22;color:#86EFAC"  onclick="toggleSerie(this)">Mental</button>
+    <button class="chart-toggle on" data-serie="energia"   style="border-color:#FCD34D;background:#FCD34D22;color:#FCD34D"  onclick="toggleSerie(this)">Energia</button>
+    <button class="chart-toggle on" data-serie="sono"      style="border-color:#A78BFA;background:#A78BFA22;color:#A78BFA"  onclick="toggleSerie(this)">Sono (h)</button>
+    <button class="chart-toggle"    data-serie="sono_q"    style="border-color:#7DD3FC;background:var(--surface2);color:var(--text3)"  onclick="toggleSerie(this)">Sono qual.</button>
+    <button class="chart-toggle"    data-serie="dor"       style="border-color:#FCA5A5;background:var(--surface2);color:var(--text3)"  onclick="toggleSerie(this)">Dor</button>
+    <button class="chart-toggle"    data-serie="stress_t"  style="border-color:#F97316;background:var(--surface2);color:var(--text3)"  onclick="toggleSerie(this)">Stress trab.</button>
+    <button class="chart-toggle"    data-serie="stress_r"  style="border-color:#FB923C;background:var(--surface2);color:var(--text3)"  onclick="toggleSerie(this)">Stress rel.</button>
+    <button class="chart-toggle"    data-serie="social"    style="border-color:#34D399;background:var(--surface2);color:var(--text3)"  onclick="toggleSerie(this)">Social</button>
+  </div>
+  <canvas id="trend-chart" height="160"></canvas>
+</div>
+<script>
+(function(){{
+  var labels = {chart_labels};
+  var allData = {{
+    mental:   {chart_mental},
+    energia:  {chart_energia},
+    sono:     {chart_sono},
+    sono_q:   {chart_sono_q},
+    dor:      {chart_dor},
+    stress_t: {chart_stress_t},
+    stress_r: {chart_stress_r},
+    social:   {chart_social}
+  }};
+  var colors = {{
+    mental:"#86EFAC", energia:"#FCD34D", sono:"#A78BFA", sono_q:"#7DD3FC",
+    dor:"#FCA5A5", stress_t:"#F97316", stress_r:"#FB923C", social:"#34D399"
+  }};
+  var names = {{
+    mental:"Mental", energia:"Energia", sono:"Sono (h)", sono_q:"Sono qual.",
+    dor:"Dor", stress_t:"Stress trab.", stress_r:"Stress rel.", social:"Social"
+  }};
+  var active = {{"mental":true,"energia":true,"sono":true}};
+
+  function buildDatasets(){{
+    return Object.keys(active).filter(k=>active[k]).map(k=>{{
+      return {{
+        label: names[k],
+        data: allData[k],
+        borderColor: colors[k],
+        backgroundColor: colors[k]+"33",
+        borderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        tension: 0.3,
+        spanGaps: true
+      }};
+    }});
+  }}
+
+  var ctx = document.getElementById("trend-chart").getContext("2d");
+  var chart = new Chart(ctx, {{
+    type: "line",
+    data: {{ labels: labels, datasets: buildDatasets() }},
+    options: {{
+      responsive: true,
+      plugins: {{
+        legend: {{ display: false }},
+        tooltip: {{ mode: "index", intersect: false }}
+      }},
+      scales: {{
+        x: {{ ticks: {{ color:"#94A3B8", font:{{size:11}} }}, grid:{{ color:"#2A2A38" }} }},
+        y: {{ min:0, max:10, ticks:{{ color:"#94A3B8", font:{{size:11}}, stepSize:2 }}, grid:{{ color:"#2A2A38" }} }}
+      }}
+    }}
+  }});
+
+  window.toggleSerie = function(btn){{
+    var serie = btn.dataset.serie;
+    var isOn = active[serie];
+    if(isOn){{
+      delete active[serie];
+      btn.style.background = "var(--surface2)";
+      btn.style.color = "var(--text3)";
+    }} else {{
+      active[serie] = true;
+      btn.style.background = colors[serie]+"22";
+      btn.style.color = colors[serie];
+    }}
+    chart.data.datasets = buildDatasets();
+    chart.update();
+  }};
+}})();
+</script>"""
 
     REMED_PRIORITARIOS = {"rivotril", "zolpidem"}
     hist_doses = {}
