@@ -699,6 +699,9 @@ async def dashboard_get():
             contextos_lista = await conn.fetch(
                 "SELECT label, ativo FROM contextos_config WHERE user_id = 1 ORDER BY ordem, id"
             )
+            session_hoje = await conn.fetchrow(
+                "SELECT status FROM checkin_sessions WHERE user_id=1 AND data_referencia=(NOW() AT TIME ZONE 'America/Sao_Paulo')::date ORDER BY id DESC LIMIT 1"
+            )
     except Exception as e:
         return _render(f'<div class="empty-state"><div class="es-icon">\u26a0</div><div class="es-title">Erro ao carregar</div><div class="es-sub">{e}</div></div>')
 
@@ -709,10 +712,11 @@ async def dashboard_get():
     saudacao = "Bom dia" if hora_sp < 12 else ("Boa tarde" if hora_sp < 18 else "Boa noite")
 
     checkin_hoje = rows[0] if rows and rows[0]["data"] == hoje else None
+    checkin_hoje_completo = checkin_hoje and (session_hoje is not None and session_hoje["status"] == "concluido")
     ref = next((r for r in rows if r["saude_mental"] is not None), None)
 
     # Botão check-in contextual
-    if checkin_hoje:
+    if checkin_hoje_completo:
         checkin_area = (
             '<div class="header-right">'
             '<span class="checkin-done">&#10003; Check-in feito</span>'
@@ -736,16 +740,44 @@ async def dashboard_get():
             '>&#9998; Editar</button>'
             '</div>'
         )
+    elif checkin_hoje:
+        checkin_area = (
+            '<div class="header-right">'
+            '<span class="checkin-done" style="background:#1c1a0e;color:#FCD34D;border-color:#3d3510">\u23f3 Parcial</span>'
+            f'<button class="checkin-edit-btn" onclick="openEdit(this)" '
+            f'data-data="{hoje.isoformat()}" '
+            f'data-dor="{checkin_hoje["dor_fisica"] or ""}" '
+            f'data-en="{checkin_hoje["energia"] or ""}" '
+            f'data-sh="{checkin_hoje["sono_horas"] or ""}" '
+            f'data-sq="{checkin_hoje["sono_qualidade"] or ""}" '
+            f'data-me="{checkin_hoje["saude_mental"] or ""}" '
+            f'data-st="{checkin_hoje["stress_trabalho"] or ""}" '
+            f'data-sr="{checkin_hoje["stress_relacionamento"] or ""}" '
+            f'data-al="{checkin_hoje["alcool"] or ""}" '
+            f'data-ci="{checkin_hoje["cigarros"] or ""}" '
+            f'data-so="{checkin_hoje["desempenho_social"] or ""}" '
+            f'data-ex="{checkin_hoje["exercicio"] or ""}" '
+            f'data-alim="{checkin_hoje["alimentacao"] if checkin_hoje["alimentacao"] is not None else ""}" '
+            f'data-relato="{_html_mod.escape(checkin_hoje["nota_raw"] or "")}" '
+            f'data-rj="{_html_mod.escape(_json.dumps(checkin_hoje["remedios_tomados"] if isinstance(checkin_hoje["remedios_tomados"], list) else (_json.loads(checkin_hoje["remedios_tomados"]) if checkin_hoje["remedios_tomados"] else []))  )}" '
+            f'data-ctx="{_html_mod.escape(_json.dumps(checkin_hoje["contextos_dia"] if isinstance(checkin_hoje["contextos_dia"], list) else (_json.loads(checkin_hoje["contextos_dia"]) if checkin_hoje["contextos_dia"] else [])))}"'
+            '>&#9998; Editar</button>'
+            '<a class="checkin-btn" href="/checkin-web" style="background:#1c3a1c;color:#86EFAC;border:1px solid #1a5c1a">\u2714 Completar</a>'
+            '</div>'
+        )
     else:
         checkin_area = '<div class="header-right"><a class="checkin-btn" href="/checkin-web">+ Check-in</a></div>'
 
+    cfg_btn = '<a href="/dashboard/configuracoes" style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;font-size:16px;color:var(--text3);display:inline-flex;align-items:center" title="Configura\u00e7\u00f5es">&#9881;</a>'
+    # Inject cfg_btn inside checkin_area's header-right div
+    checkin_area_with_cfg = checkin_area.replace('</div>', f'{cfg_btn}</div>', 1)
     body = f"""
 <div class="header">
   <div class="header-left">
     <div style="font-size:14px;font-weight:600;color:var(--text2);letter-spacing:.5px;text-transform:uppercase">{saudacao}</div>
     <div class="greeting">Monitoramento Mental</div>
   </div>
-  {checkin_area}
+  {checkin_area_with_cfg}
 </div>"""
 
     # ---- Hero ----
@@ -762,11 +794,12 @@ async def dashboard_get():
     except ValueError:
         data_display = ref["data"].strftime("%d de %B") if ref else "sem dados"
 
-    checkin_status = (
-        '<span style="background:#14532d;color:#86EFAC;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600">\u2713 check-in feito</span>'
-        if checkin_hoje else
-        '<span style="background:#1e293b;color:#94A3B8;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600">check-in pendente</span>'
-    )
+    if checkin_hoje_completo:
+        checkin_status = '<span style="background:#14532d;color:#86EFAC;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600">\u2713 check-in feito</span>'
+    elif checkin_hoje:
+        checkin_status = '<span style="background:#1c1a0e;color:#FCD34D;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600">\u23f3 parcial</span>'
+    else:
+        checkin_status = '<span style="background:#1e293b;color:#94A3B8;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600">check-in pendente</span>'
 
     chips = ""
     if energia_hoje is not None:
@@ -779,6 +812,31 @@ async def dashboard_get():
     if ex_hoje and ex_hoje != "Nenhum":
         chips += f'<div class="hero-chip"><span class="hc-val" style="color:#86EFAC;font-size:14px">{ex_hoje}</span><div class="hc-lbl">\u25b6 Exerc\xedcio</div></div>'
 
+    # Emoji scale visual (1-5)
+    HUMOR_EMOJIS = ["\U0001f62d", "\U0001f615", "\U0001f610", "\U0001f642", "\U0001f604"]
+    HUMOR_COLORS = ["#EF4444", "#F97316", "#FCD34D", "#86EFAC", "#22C55E"]
+    HUMOR_LABELS = ["Muito mal", "Mal", "Regular", "Bem", "Muito bem"]
+    emoji_scale_html = '<div style="display:flex;gap:6px;margin-top:14px;align-items:flex-end">'
+    for i, (em, col, lbl) in enumerate(zip(HUMOR_EMOJIS, HUMOR_COLORS, HUMOR_LABELS)):
+        nivel = i + 1
+        is_active = mental_hoje is not None and int(round(float(mental_hoje))) == nivel
+        if is_active:
+            emoji_scale_html += (
+                f'<div style="display:flex;flex-direction:column;align-items:center;flex:1">'
+                f'<div style="font-size:38px;line-height:1;filter:none">{em}</div>'
+                f'<div style="font-size:9px;color:{col};font-weight:700;margin-top:4px;text-align:center;letter-spacing:.3px">{lbl}</div>'
+                f'<div style="width:100%;height:3px;background:{col};border-radius:2px;margin-top:4px"></div>'
+                f'</div>'
+            )
+        else:
+            emoji_scale_html += (
+                f'<div style="display:flex;flex-direction:column;align-items:center;flex:1;opacity:.3">'
+                f'<div style="font-size:26px;line-height:1">{em}</div>'
+                f'<div style="width:100%;height:3px;background:var(--border);border-radius:2px;margin-top:8px"></div>'
+                f'</div>'
+            )
+    emoji_scale_html += '</div>'
+
     body += f"""
 <div class="hero">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -786,7 +844,8 @@ async def dashboard_get():
     {checkin_status}
   </div>
   <div class="hero-score" style="color:{score_color};font-size:80px;font-weight:900;line-height:1">{score_display}<span style="font-size:22px;font-weight:500;opacity:.6"> /5</span></div>
-  <div class="hero-frase">{frase}</div>
+  {emoji_scale_html}
+  <div class="hero-frase" style="margin-top:14px">{frase}</div>
   {f'<div class="hero-meta">{chips}</div>' if chips else ''}
 </div>"""
 
@@ -1524,6 +1583,10 @@ async def dashboard_alimentacao_atualizar(valor: int = Form(...)):
 
 @router.get("/dashboard/contextos-editor", response_class=HTMLResponse)
 async def contextos_editor_get():
+    return RedirectResponse("/dashboard/configuracoes?aba=contextos", status_code=302)
+
+@router.get("/dashboard/contextos-editor-legacy", response_class=HTMLResponse)
+async def contextos_editor_get_legacy():
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -1615,3 +1678,405 @@ async def dashboard_remover(data: str = Form(...)):
         await conn.execute("DELETE FROM checkins WHERE user_id=1 AND data=$1", date.fromisoformat(data))
         await conn.execute("DELETE FROM checkin_sessions WHERE user_id=1 AND data_referencia=$1", date.fromisoformat(data))
     return RedirectResponse("/dashboard", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# GET /dashboard/configuracoes  (abas: campos + contextos)
+# ---------------------------------------------------------------------------
+
+_CFG_CSS = """
+:root{--bg:#0F0F14;--surface:#18181F;--surface2:#22222C;--border:#2A2A38;
+  --primary:#A78BFA;--primary-dim:#7C5CBF;--good:#86EFAC;--warn:#FCD34D;
+  --low:#FCA5A5;--text:#F1F0F5;--text2:#94A3B8;--text3:#4A4A5A;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;padding:0 0 80px;max-width:600px;margin:0 auto}
+a{color:var(--primary);text-decoration:none}
+.cfg-header{padding:24px 24px 0;display:flex;align-items:center;gap:16px;margin-bottom:0}
+.cfg-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin:20px 24px 0;padding:0}
+.cfg-tab{padding:10px 20px;font-size:13px;font-weight:600;color:var(--text3);cursor:pointer;
+  border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;
+  font-family:inherit;transition:all .15s}
+.cfg-tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.cfg-tab:hover{color:var(--text2)}
+.cfg-panel{display:none;padding:20px 24px}
+.cfg-panel.active{display:block}
+.cfg-item{display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface);border-radius:10px;padding:14px 16px;margin-bottom:8px;
+  border:1px solid var(--border);gap:12px}
+.cfg-item-left{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.cfg-item-name{font-size:14px;font-weight:600;color:var(--text)}
+.cfg-item-meta{font-size:11px;color:var(--text3)}
+.cfg-item-right{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.cfg-btn{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:6px 14px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit}
+.cfg-btn:hover{border-color:var(--primary);color:var(--primary)}
+.cfg-btn.danger{color:var(--low);border-color:#450a0a}
+.cfg-btn.danger:hover{background:#450a0a}
+.cfg-toggle{position:relative;width:40px;height:22px;flex-shrink:0}
+.cfg-toggle input{opacity:0;width:0;height:0}
+.cfg-slider{position:absolute;cursor:pointer;inset:0;background:var(--border);border-radius:11px;transition:.2s}
+.cfg-slider:before{content:'';position:absolute;height:16px;width:16px;left:3px;bottom:3px;
+  background:var(--text3);border-radius:50%;transition:.2s}
+.cfg-toggle input:checked+.cfg-slider{background:var(--primary-dim)}
+.cfg-toggle input:checked+.cfg-slider:before{background:var(--primary);transform:translateX(18px)}
+.cfg-add-form{display:flex;flex-direction:column;gap:12px;background:var(--surface);
+  border-radius:12px;padding:18px;border:1px solid var(--border);margin-top:16px}
+.cfg-add-title{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.cfg-row{display:flex;gap:10px;flex-wrap:wrap}
+.cfg-field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:140px}
+.cfg-label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
+.cfg-input,.cfg-select{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:9px 12px;color:var(--text);font-size:13px;outline:none;font-family:inherit;width:100%}
+.cfg-input:focus,.cfg-select:focus{border-color:var(--primary)}
+.cfg-submit{background:var(--primary);color:#0F0F14;border:none;border-radius:10px;
+  padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;align-self:flex-start}
+.cfg-type-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+.type-escala{background:rgba(167,139,250,.15);color:var(--primary)}
+.type-numerico{background:rgba(103,232,249,.15);color:#67E8F9}
+.type-opcoes{background:rgba(134,239,172,.15);color:var(--good)}
+.type-custom{background:rgba(249,168,212,.15);color:#F9A8D4}
+.cfg-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;padding:20px;overflow-y:auto}
+.cfg-modal.open{display:block}
+.cfg-modal-box{background:var(--surface);border-radius:16px;padding:24px;max-width:440px;margin:40px auto;border:1px solid var(--border)}
+.cfg-modal-title{font-size:15px;font-weight:700;margin-bottom:18px}
+.cfg-modal-footer{display:flex;gap:10px;margin-top:20px}
+.cfg-modal-save{flex:1;background:var(--primary);color:#0F0F14;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer}
+.cfg-modal-cancel{flex:1;background:var(--surface2);color:var(--text2);border:none;border-radius:10px;padding:11px;font-size:13px;cursor:pointer}
+"""
+
+def _cfg_type_badge(tipo):
+    cls_map = {"escala_1_5": "type-escala", "numerico": "type-numerico", "opcoes": "type-opcoes", "custom": "type-custom"}
+    label_map = {"escala_1_5": "Escala 1-5", "numerico": "Numérico", "opcoes": "Opções", "custom": "Personalizado"}
+    cls = cls_map.get(tipo, "type-custom")
+    lbl = label_map.get(tipo, tipo)
+    return f'<span class="cfg-type-badge {cls}">{lbl}</span>'
+
+# Mapeamento dos campos fixos com seus tipos
+_CAMPOS_FIXOS_META = {
+    "dor_fisica":             {"label": "Dor física", "tipo": "escala_1_5", "emoji": "❤"},
+    "energia":                {"label": "Energia", "tipo": "escala_1_5", "emoji": "⚡"},
+    "sono_horas":             {"label": "Sono (horas)", "tipo": "numerico", "emoji": "★"},
+    "sono_qualidade":         {"label": "Qualidade do sono", "tipo": "escala_1_5", "emoji": "☽"},
+    "exercicio":              {"label": "Exercício", "tipo": "opcoes", "emoji": "▶", "opcoes": "Nenhum, Leve, Moderado, Intenso"},
+    "saude_mental":           {"label": "Saúde mental", "tipo": "escala_1_5", "emoji": "✨"},
+    "stress_trabalho":        {"label": "Stress no trabalho", "tipo": "escala_1_5", "emoji": "⏰"},
+    "stress_relacionamento":  {"label": "Stress nos relacionamentos", "tipo": "escala_1_5", "emoji": "♥"},
+    "alcool":                 {"label": "Álcool", "tipo": "opcoes", "emoji": "☕", "opcoes": "Nenhum, Pouco, Moderado, Muito"},
+    "cigarros":               {"label": "Cigarros", "tipo": "numerico", "emoji": "✖"},
+    "desempenho_social":      {"label": "Vida social", "tipo": "escala_1_5", "emoji": "☀"},
+    "remedios":               {"label": "Remédios", "tipo": "opcoes", "emoji": "♥"},
+    "nota":                   {"label": "Nota do dia", "tipo": "opcoes", "emoji": "✏"},
+}
+
+
+@router.get("/dashboard/configuracoes", response_class=HTMLResponse)
+async def configuracoes_get(aba: str = "campos"):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        campos_db = await conn.fetch(
+            "SELECT campo, ativo, ordem FROM campos_config WHERE user_id=1 ORDER BY ordem, id"
+        )
+        contextos_db = await conn.fetch(
+            "SELECT id, label, ativo, ordem FROM contextos_config WHERE user_id=1 ORDER BY ordem, id"
+        )
+        # Campos custom (se tabela existir)
+        try:
+            campos_custom = await conn.fetch(
+                "SELECT id, nome, tipo_input, opcoes_texto, ativo FROM campos_custom WHERE user_id=1 ORDER BY id"
+            )
+        except Exception:
+            campos_custom = []
+
+    campos_map = {r["campo"]: dict(r) for r in campos_db}
+
+    # --- Aba Campos ---
+    campos_html = ""
+    for campo, meta in _CAMPOS_FIXOS_META.items():
+        db = campos_map.get(campo, {})
+        ativo = db.get("ativo", True)
+        checked = "checked" if ativo else ""
+        tipo_badge = _cfg_type_badge(meta["tipo"])
+        opcoes_info = f' &bull; {_html_mod.escape(meta["opcoes"])}' if meta.get("opcoes") else ""
+        campos_html += f"""
+<div class="cfg-item">
+  <div class="cfg-item-left">
+    <div class="cfg-item-name">{meta["emoji"]} {_html_mod.escape(meta["label"])}</div>
+    <div class="cfg-item-meta">{tipo_badge}{opcoes_info}</div>
+  </div>
+  <div class="cfg-item-right">
+    <form method="post" action="/dashboard/configuracoes/campo-toggle">
+      <input type="hidden" name="campo" value="{campo}">
+      <label class="cfg-toggle" title="{'Ativo' if ativo else 'Inativo'}">
+        <input type="checkbox" {checked} onchange="this.form.submit()">
+        <span class="cfg-slider"></span>
+      </label>
+    </form>
+  </div>
+</div>"""
+
+    # Campos custom
+    for cc in campos_custom:
+        ativo_cc = cc["ativo"]
+        checked_cc = "checked" if ativo_cc else ""
+        tipo_cc = cc["tipo_input"] or "custom"
+        tipo_badge_cc = _cfg_type_badge(tipo_cc)
+        opcoes_cc = f' &bull; {_html_mod.escape(cc["opcoes_texto"] or "")}' if cc.get("opcoes_texto") else ""
+        campos_html += f"""
+<div class="cfg-item">
+  <div class="cfg-item-left">
+    <div class="cfg-item-name">&#10022; {_html_mod.escape(cc["nome"])}</div>
+    <div class="cfg-item-meta">{tipo_badge_cc}{opcoes_cc} <span style="color:#F9A8D4;font-size:10px">personalizado</span></div>
+  </div>
+  <div class="cfg-item-right">
+    <button class="cfg-btn" onclick="openEditCampo({cc['id']}, '{_html_mod.escape(cc['nome'])}', '{tipo_cc}', '{_html_mod.escape(cc['opcoes_texto'] or '')}')">editar</button>
+    <form method="post" action="/dashboard/configuracoes/campo-custom-toggle" style="display:inline">
+      <input type="hidden" name="id" value="{cc['id']}">
+      <label class="cfg-toggle">
+        <input type="checkbox" {checked_cc} onchange="this.form.submit()">
+        <span class="cfg-slider"></span>
+      </label>
+    </form>
+  </div>
+</div>"""
+
+    # Form adicionar campo custom
+    campos_html += """
+<div class="cfg-add-form">
+  <div class="cfg-add-title">&#43; Novo campo personalizado</div>
+  <form method="post" action="/dashboard/configuracoes/campo-custom-add">
+    <div class="cfg-row">
+      <div class="cfg-field">
+        <label class="cfg-label">Nome do campo</label>
+        <input class="cfg-input" type="text" name="nome" placeholder="Ex: Ansiedade, Foco..." required maxlength="50">
+      </div>
+      <div class="cfg-field">
+        <label class="cfg-label">Tipo</label>
+        <select class="cfg-select" name="tipo_input" id="tipo-select" onchange="tipoChange(this.value)">
+          <option value="escala_1_5">Escala 1-5</option>
+          <option value="numerico">Numérico (texto livre)</option>
+          <option value="opcoes">Opções (múltipla escolha)</option>
+        </select>
+      </div>
+    </div>
+    <div class="cfg-field" id="opcoes-field" style="display:none;margin-top:10px">
+      <label class="cfg-label">Opções (separadas por vírgula)</label>
+      <input class="cfg-input" type="text" name="opcoes_texto" id="opcoes-input" placeholder="Ex: Sim, Não, Às vezes">
+    </div>
+    <button type="submit" class="cfg-submit" style="margin-top:14px">Adicionar campo</button>
+  </form>
+</div>"""
+
+    # --- Aba Contextos ---
+    ctx_html = ""
+    for r in contextos_db:
+        cor = "var(--text)" if r["ativo"] else "var(--text3)"
+        btn_lbl = "desativar" if r["ativo"] else "reativar"
+        btn_cls = "cfg-btn danger" if r["ativo"] else "cfg-btn"
+        ctx_html += f"""
+<div class="cfg-item">
+  <div class="cfg-item-left">
+    <div class="cfg-item-name" style="color:{cor}">{_html_mod.escape(r["label"])}</div>
+  </div>
+  <div class="cfg-item-right">
+    <form method="post" action="/dashboard/configuracoes/contexto-toggle" style="display:inline">
+      <input type="hidden" name="id" value="{r['id']}">
+      <button type="submit" class="{btn_cls}">{btn_lbl}</button>
+    </form>
+    <form method="post" action="/dashboard/configuracoes/contexto-remover" style="display:inline"
+      onsubmit="return confirm('Remover contexto \\\"{_html_mod.escape(r["label"])}\\\"?')">
+      <input type="hidden" name="id" value="{r['id']}">
+      <button type="submit" class="cfg-btn danger">remover</button>
+    </form>
+  </div>
+</div>"""
+
+    ctx_html += """
+<div class="cfg-add-form">
+  <div class="cfg-add-title">&#43; Novo contexto</div>
+  <form method="post" action="/dashboard/configuracoes/contexto-add" style="display:flex;gap:10px;flex-wrap:wrap">
+    <input class="cfg-input" type="text" name="label" placeholder="Ex: reunião, viagem, dor de cabeça..." required maxlength="60" style="flex:1;min-width:180px">
+    <button type="submit" class="cfg-submit">Adicionar</button>
+  </form>
+</div>"""
+
+    aba_campos_active = "active" if aba != "contextos" else ""
+    aba_ctx_active = "active" if aba == "contextos" else ""
+
+    page = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Configurações</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>{_CFG_CSS}</style>
+</head>
+<body>
+<div class="cfg-header">
+  <a href="/dashboard" style="font-size:13px;color:var(--text2)">&#8592; voltar</a>
+  <h1 style="font-size:20px;font-weight:700">Configurações</h1>
+</div>
+<div class="cfg-tabs">
+  <button class="cfg-tab {aba_campos_active}" onclick="showAba('campos')">&#10064; Campos</button>
+  <button class="cfg-tab {aba_ctx_active}" onclick="showAba('contextos')">&#127381; Contextos</button>
+</div>
+<div class="cfg-panel {aba_campos_active}" id="panel-campos">
+{campos_html}
+</div>
+<div class="cfg-panel {aba_ctx_active}" id="panel-contextos">
+{ctx_html}
+</div>
+
+<!-- Modal editar campo custom -->
+<div class="cfg-modal" id="modal-campo">
+<div class="cfg-modal-box">
+  <div class="cfg-modal-title">&#9998; Editar campo</div>
+  <form method="post" action="/dashboard/configuracoes/campo-custom-editar">
+    <input type="hidden" name="id" id="edit-campo-id">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="cfg-field">
+        <label class="cfg-label">Nome</label>
+        <input class="cfg-input" type="text" name="nome" id="edit-campo-nome" required maxlength="50">
+      </div>
+      <div class="cfg-field">
+        <label class="cfg-label">Tipo</label>
+        <select class="cfg-select" name="tipo_input" id="edit-campo-tipo" onchange="editTipoChange(this.value)">
+          <option value="escala_1_5">Escala 1-5</option>
+          <option value="numerico">Numérico</option>
+          <option value="opcoes">Opções</option>
+        </select>
+      </div>
+      <div class="cfg-field" id="edit-opcoes-field">
+        <label class="cfg-label">Opções (separadas por vírgula)</label>
+        <input class="cfg-input" type="text" name="opcoes_texto" id="edit-campo-opcoes" placeholder="Ex: Sim, Não, Às vezes">
+      </div>
+    </div>
+    <div class="cfg-modal-footer">
+      <button type="button" class="cfg-modal-cancel" onclick="closeCampoModal()">Cancelar</button>
+      <button type="submit" class="cfg-modal-save">Salvar</button>
+    </div>
+  </form>
+</div>
+</div>
+
+<script>
+function showAba(aba) {{
+  document.querySelectorAll('.cfg-tab').forEach(function(t){{t.classList.remove('active');}});
+  document.querySelectorAll('.cfg-panel').forEach(function(p){{p.classList.remove('active');}});
+  document.querySelector('.cfg-tab[onclick="showAba(\\''+aba+'\\')"]').classList.add('active');
+  document.getElementById('panel-'+aba).classList.add('active');
+}}
+function tipoChange(v) {{
+  document.getElementById('opcoes-field').style.display = v === 'opcoes' ? 'block' : 'none';
+  document.getElementById('opcoes-input').required = v === 'opcoes';
+}}
+function editTipoChange(v) {{
+  document.getElementById('edit-opcoes-field').style.display = v === 'opcoes' ? 'block' : 'none';
+}}
+function openEditCampo(id, nome, tipo, opcoes) {{
+  document.getElementById('edit-campo-id').value = id;
+  document.getElementById('edit-campo-nome').value = nome;
+  document.getElementById('edit-campo-tipo').value = tipo;
+  document.getElementById('edit-campo-opcoes').value = opcoes;
+  editTipoChange(tipo);
+  document.getElementById('modal-campo').classList.add('open');
+}}
+function closeCampoModal() {{
+  document.getElementById('modal-campo').classList.remove('open');
+}}
+</script>
+</body>
+</html>"""
+    return page
+
+
+@router.post("/dashboard/configuracoes/campo-toggle")
+async def cfg_campo_toggle(campo: str = Form(...)):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE campos_config SET ativo = NOT ativo WHERE campo=$1 AND user_id=1", campo
+        )
+    return RedirectResponse("/dashboard/configuracoes?aba=campos", status_code=303)
+
+
+@router.post("/dashboard/configuracoes/contexto-toggle")
+async def cfg_ctx_toggle(id: int = Form(...)):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE contextos_config SET ativo = NOT ativo WHERE id=$1 AND user_id=1", id
+        )
+    return RedirectResponse("/dashboard/configuracoes?aba=contextos", status_code=303)
+
+
+@router.post("/dashboard/configuracoes/contexto-add")
+async def cfg_ctx_add(label: str = Form(...)):
+    label = label.strip()[:60]
+    if not label:
+        return RedirectResponse("/dashboard/configuracoes?aba=contextos", status_code=303)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO contextos_config (user_id, label, ordem) VALUES (1, $1, 99) ON CONFLICT DO NOTHING",
+            label,
+        )
+    return RedirectResponse("/dashboard/configuracoes?aba=contextos", status_code=303)
+
+
+@router.post("/dashboard/configuracoes/contexto-remover")
+async def cfg_ctx_remover(id: int = Form(...)):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM contextos_config WHERE id=$1 AND user_id=1", id)
+    return RedirectResponse("/dashboard/configuracoes?aba=contextos", status_code=303)
+
+
+@router.post("/dashboard/configuracoes/campo-custom-add")
+async def cfg_campo_custom_add(
+    nome: str = Form(...),
+    tipo_input: str = Form(...),
+    opcoes_texto: str = Form(default=""),
+):
+    nome = nome.strip()[:50]
+    tipo_input = tipo_input.strip()
+    opcoes_texto = opcoes_texto.strip()[:200]
+    if not nome:
+        return RedirectResponse("/dashboard/configuracoes?aba=campos", status_code=303)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """CREATE TABLE IF NOT EXISTS campos_custom (
+               id SERIAL PRIMARY KEY, user_id INT, nome TEXT NOT NULL,
+               tipo_input TEXT DEFAULT 'escala_1_5', opcoes_texto TEXT,
+               ativo BOOLEAN DEFAULT TRUE, criado_em TIMESTAMP DEFAULT NOW())"""
+        )
+        await conn.execute(
+            "INSERT INTO campos_custom (user_id, nome, tipo_input, opcoes_texto) VALUES (1, $1, $2, $3)",
+            nome, tipo_input, opcoes_texto or None,
+        )
+    return RedirectResponse("/dashboard/configuracoes?aba=campos", status_code=303)
+
+
+@router.post("/dashboard/configuracoes/campo-custom-toggle")
+async def cfg_campo_custom_toggle(id: int = Form(...)):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE campos_custom SET ativo = NOT ativo WHERE id=$1 AND user_id=1", id)
+    return RedirectResponse("/dashboard/configuracoes?aba=campos", status_code=303)
+
+
+@router.post("/dashboard/configuracoes/campo-custom-editar")
+async def cfg_campo_custom_editar(
+    id: int = Form(...),
+    nome: str = Form(...),
+    tipo_input: str = Form(...),
+    opcoes_texto: str = Form(default=""),
+):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE campos_custom SET nome=$1, tipo_input=$2, opcoes_texto=$3 WHERE id=$4 AND user_id=1",
+            nome.strip()[:50], tipo_input.strip(), opcoes_texto.strip()[:200] or None, id,
+        )
+    return RedirectResponse("/dashboard/configuracoes?aba=campos", status_code=303)
