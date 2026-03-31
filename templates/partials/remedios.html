@@ -1,0 +1,50 @@
+{# ── Remédios prioritários ────────────────────────────────────────── #}
+<div class="remed-priority-grid">
+  {% for card in remed_cards %}
+  <div class="remed-priority-card {% if card.dias_consecutivos >= 3 %}has-alert{% endif %}">
+    {% if card.dias_consecutivos >= 3 %}
+    <div class="remed-alert">
+      ⚠ {{ card.dias_consecutivos }} dias consecutivos acima da média
+    </div>
+    {% endif %}
+    <div class="remed-priority-name">{{ card.nome }}</div>
+    <div class="remed-dose-row">
+      <div class="remed-priority-dose" id="remed-qtd-{{ card.nome }}">
+        {{ card.dose_hoje }} <span>comp.</span>
+      </div>
+      <div class="remed-btns">
+        <button class="remed-upd-btn" onclick="remedUpdate('{{ card.nome }}', -1)">−</button>
+        <button class="remed-upd-btn remed-upd-plus" onclick="remedUpdate('{{ card.nome }}', 1)">+</button>
+      </div>
+    </div>
+    <div class="remed-meta">
+      <span class="remed-media">média: {{ card.media }} comp.</span>
+      {% if card.delta_media %}
+      <span class="remed-delta {{ card.delta_media.tipo }}">{{ card.delta_media.texto }}</span>
+      {% endif %}
+    </div>
+    <div class="remed-priority-hist">
+      {% if card.barras %}
+        {% for b in card.barras %}
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center">
+          <div class="remed-hist-bar {% if b.is_today %}today{% endif %}" style="height:{{ b.altura }}px;width:100%"></div>
+          <div class="remed-hist-label">{{ b.data }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <span style="font-size:12px;color:var(--text3)">sem histórico</span>
+      {% endif %}
+    </div>
+    <div class="remed-baseline">padrão: {{ card.baseline }} comp.</div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if remed_secundarios %}
+<div class="remed-sec">
+  <span class="remed-sec-label">Outros</span>
+  {% for r in remed_secundarios %}
+  <span class="remed-sec-item">{{ r.nome }}</span>
+  {% endfor %}
+</div>
+{% endif %}

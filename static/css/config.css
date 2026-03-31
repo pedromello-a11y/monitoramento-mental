@@ -1,0 +1,266 @@
+/* ===================================================================
+   Config page CSS — Monitoramento Mental
+   =================================================================== */
+
+:root {
+  --bg: #0F0F14;
+  --surface: #18181F;
+  --surface2: #22222C;
+  --border: #2A2A38;
+  --primary: #A78BFA;
+  --primary-dim: #7C5CBF;
+  --good: #86EFAC;
+  --warn: #FCD34D;
+  --low: #FCA5A5;
+  --neutral: #94A3B8;
+  --text: #F1F0F5;
+  --text2: #94A3B8;
+  --text3: #4A4A5A;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  padding: 0 0 80px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+a { color: var(--primary); text-decoration: none; }
+
+/* ── Header ─────────────────────────────────────────────────────── */
+.cfg-header {
+  padding: 24px 24px 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.cfg-header h1 { font-size: 20px; font-weight: 700; }
+.cfg-back { font-size: 13px; color: var(--text2); }
+
+/* ── Tabs ────────────────────────────────────────────────────────── */
+.cfg-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin: 20px 24px 0;
+  padding: 0;
+}
+.cfg-tab {
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text3);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  font-family: inherit;
+  transition: all .15s;
+}
+.cfg-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.cfg-tab:hover  { color: var(--text2); }
+
+/* ── Panels ──────────────────────────────────────────────────────── */
+.cfg-panel { display: none; padding: 20px 24px; }
+.cfg-panel.active { display: block; }
+
+/* ── Items ───────────────────────────────────────────────────────── */
+.cfg-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  gap: 12px;
+}
+.cfg-item-left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.cfg-item-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.cfg-item-meta { font-size: 11px; color: var(--text3); }
+.cfg-item-right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+.cfg-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  cursor: pointer;
+  font-family: inherit;
+}
+.cfg-btn:hover { border-color: var(--primary); color: var(--primary); }
+.cfg-btn.danger { color: var(--low); border-color: #450a0a; }
+.cfg-btn.danger:hover { background: #450a0a; }
+
+/* ── Toggle ──────────────────────────────────────────────────────── */
+.cfg-toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+.cfg-toggle input { opacity: 0; width: 0; height: 0; }
+.cfg-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--border);
+  border-radius: 11px;
+  transition: .2s;
+}
+.cfg-slider::before {
+  content: '';
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background: var(--text3);
+  border-radius: 50%;
+  transition: .2s;
+}
+.cfg-toggle input:checked + .cfg-slider { background: var(--primary-dim); }
+.cfg-toggle input:checked + .cfg-slider::before {
+  background: var(--primary);
+  transform: translateX(18px);
+}
+
+/* ── Add form ────────────────────────────────────────────────────── */
+.cfg-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  margin-top: 16px;
+}
+.cfg-add-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.cfg-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.cfg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-width: 140px;
+}
+.cfg-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.cfg-input, .cfg-select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+  width: 100%;
+}
+.cfg-input:focus, .cfg-select:focus { border-color: var(--primary); }
+.cfg-submit {
+  background: var(--primary);
+  color: #0F0F14;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  align-self: flex-start;
+  font-family: inherit;
+}
+
+/* ── Type badges ─────────────────────────────────────────────────── */
+.cfg-type-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.type-escala  { background: rgba(167,139,250,.15); color: var(--primary); }
+.type-numerico{ background: rgba(103,232,249,.15);  color: #67E8F9; }
+.type-opcoes  { background: rgba(134,239,172,.15);  color: var(--good); }
+.type-custom  { background: rgba(249,168,212,.15);  color: #F9A8D4; }
+
+/* ── Modal editar campo ──────────────────────────────────────────── */
+.cfg-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.75);
+  z-index: 200;
+  padding: 20px;
+  overflow-y: auto;
+}
+.cfg-modal.open { display: block; }
+.cfg-modal-box {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 440px;
+  margin: 40px auto;
+  border: 1px solid var(--border);
+}
+.cfg-modal-title { font-size: 15px; font-weight: 700; margin-bottom: 18px; }
+.cfg-modal-footer { display: flex; gap: 10px; margin-top: 20px; }
+.cfg-modal-save {
+  flex: 1;
+  background: var(--primary);
+  color: #0F0F14;
+  border: none;
+  border-radius: 10px;
+  padding: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cfg-modal-cancel {
+  flex: 1;
+  background: var(--surface2);
+  color: var(--text2);
+  border: none;
+  border-radius: 10px;
+  padding: 11px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+@media (max-width: 480px) {
+  .cfg-header { padding: 20px 16px 0; }
+  .cfg-tabs   { margin: 16px 16px 0; }
+  .cfg-panel  { padding: 16px; }
+}

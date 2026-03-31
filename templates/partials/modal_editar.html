@@ -1,0 +1,71 @@
+{# ── Modal de edição ──────────────────────────────────────────────── #}
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <div class="modal-title">✎ Editar registro</div>
+    <form method="post" action="/dashboard/editar">
+      <input type="hidden" name="data" id="ed-data">
+      <div class="field-grid">
+        <div class="field"><label>✨ Humor</label><input name="saude_mental" id="ed-me" type="number" min="1" max="5"></div>
+        <div class="field"><label>⚡ Energia</label><input name="energia" id="ed-en" type="number" min="1" max="5"></div>
+        <div class="field"><label>❤ Dor física</label><input name="dor_fisica" id="ed-dor" type="number" min="1" max="5"></div>
+        <div class="field"><label>★ Sono (horas)</label><input name="sono_horas" id="ed-sh" type="number" min="0" max="16" step="0.5"></div>
+        <div class="field"><label>☽ Sono qualidade</label><input name="sono_qualidade" id="ed-sq" type="number" min="1" max="5"></div>
+        <div class="field"><label>⏰ Stress trabalho</label><input name="stress_trabalho" id="ed-st" type="number" min="1" max="5"></div>
+        <div class="field"><label>♥ Stress rel.</label><input name="stress_relacionamento" id="ed-sr" type="number" min="1" max="5"></div>
+        <div class="field"><label>☕ Álcool</label><input name="alcool" id="ed-al" type="text" placeholder="Nenhum / Pouco / Moderado / Muito"></div>
+        <div class="field"><label>✖ Cigarros</label><input name="cigarros" id="ed-ci" type="number" min="0"></div>
+        <div class="field"><label>☀ Social</label><input name="desempenho_social" id="ed-so" type="number" min="1" max="5"></div>
+        <div class="field"><label>🌸 Alimentação (1-5)</label><input name="alimentacao" id="ed-alim" type="number" min="1" max="5"></div>
+        <div class="field">
+          <label>▶ Exercício</label>
+          <select name="exercicio" id="ed-ex" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;padding:10px 12px;font-family:inherit;outline:none">
+            <option value="Nenhum">Nenhum</option>
+            <option value="Leve">Leve</option>
+            <option value="Moderado">Moderado</option>
+            <option value="Intenso">Intenso</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <div class="modal-section-title">✏ Relato</div>
+        <div class="field">
+          <textarea name="nota_raw" id="ed-relato" placeholder="O que marcou esse dia? Gatilhos, momentos, como você se sentiu..."></textarea>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <div class="modal-section-title">💊 Remédios</div>
+        <div style="display:flex;flex-direction:column;gap:8px" id="ed-remed-list">
+          {% for r in modal_remedios %}
+          <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:10px;padding:8px 12px">
+            <span style="font-size:13px;font-weight:600;color:var(--text)">{{ r.nome | e }}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:11px;color:var(--text3)">qtd</span>
+              <input class="ed-rem-qtd" data-nome="{{ r.nome | e }}" type="number" min="0" max="20" step="1" value="0"
+                style="width:60px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 8px;color:var(--text);font-size:14px;font-weight:700;text-align:center;outline:none">
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <input type="hidden" name="remedios_tomados" id="ed-remed-json">
+      </div>
+
+      <div class="modal-section">
+        <div class="modal-section-title">🏷 Contextos</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          {% for c in modal_contextos %}
+          <button type="button" class="ed-ctx-chip chip" data-val="{{ c.label | e }}"
+            onclick="toggleCtxChip(this)">{{ c.label | e }}</button>
+          {% endfor %}
+        </div>
+        <input type="hidden" name="contextos_dia" id="ed-ctx-json">
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn-save" onclick="buildRemedJson();buildCtxJson()">Salvar alterações</button>
+      </div>
+    </form>
+  </div>
+</div>

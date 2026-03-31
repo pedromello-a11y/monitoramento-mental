@@ -1,0 +1,46 @@
+{# ── Hero card ───────────────────────────────────────────────────── #}
+<div class="hero">
+  <div class="hero-top">
+    <div class="hero-label">Humor — {{ data_display }}</div>
+    {% if checkin_status == "completo" %}
+      <span class="badge-completo">✓ check-in feito</span>
+    {% elif checkin_status == "parcial" %}
+      <span class="badge-parcial">⏳ parcial</span>
+    {% else %}
+      <span class="badge-pendente">check-in pendente</span>
+    {% endif %}
+  </div>
+
+  <div class="hero-score" style="color:{{ score_color_val }}">
+    {{ mental_hoje if mental_hoje is not none else "—" }}<span class="score-denom"> /5</span>
+  </div>
+
+  {# Emoji scale 1-5 #}
+  <div class="emoji-scale">
+    {% for item in emoji_scale %}
+    <div class="emoji-item {% if not item.active %}inactive{% endif %}">
+      {% if item.active %}
+        <div class="emoji-glyph">{{ item.emoji }}</div>
+        <div class="emoji-lbl" style="color:{{ item.color }}">{{ item.label }}</div>
+        <div class="emoji-bar" style="background:{{ item.color }}"></div>
+      {% else %}
+        <div class="emoji-glyph-sm">{{ item.emoji }}</div>
+        <div class="emoji-bar" style="background:var(--border)"></div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="hero-frase">{{ frase }}</div>
+
+  {% if hero_chips %}
+  <div class="hero-chips">
+    {% for chip in hero_chips %}
+    <div class="hero-chip chip-{{ chip.status_class }}">
+      <span class="hc-val" style="color:{{ chip.color }}">{{ chip.valor }}</span>
+      <div class="hc-lbl">{{ chip.label }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>

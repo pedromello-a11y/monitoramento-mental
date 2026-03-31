@@ -1,0 +1,17 @@
+{# ── Exercício — histórico 7 dias ─────────────────────────────────── #}
+<div class="ex-card">
+  <div class="ex-title">Intensidade — 7 dias</div>
+  <div class="ex-week">
+    {% for d in ex_semana %}
+    <div class="ex-day">
+      {% if d.icone %}
+        <div class="ex-icon">{{ d.icone }}</div>
+      {% else %}
+        <div class="ex-icon" style="opacity:0">🚶</div>
+      {% endif %}
+      <div class="ex-bar" style="height:{{ d.altura }}px;background:{{ d.cor }}"></div>
+      <div class="ex-day-lbl">{{ d.data_str }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>

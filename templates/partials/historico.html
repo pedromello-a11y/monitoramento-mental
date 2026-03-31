@@ -1,0 +1,140 @@
+{# ── Histórico compacto ───────────────────────────────────────────── #}
+<div class="hist-compact">
+  {% for entry in historico %}
+
+  {% if entry.sem_registro %}
+  {# Dia sem registro #}
+  <div class="hist-row-empty" style="background:var(--surface);border-radius:0">
+    <span class="hist-date">{{ entry.data_str }}</span>
+    <div class="hist-vals" style="color:var(--text3);font-size:11px">sem registro</div>
+    <div class="hist-acts">
+      <a href="/checkin-web?data={{ entry.data_iso }}" class="act-btn" style="padding:4px 8px;font-size:11px;text-decoration:none">+ preencher</a>
+    </div>
+  </div>
+
+  {% else %}
+  {# Dia com registro #}
+  <details class="hist-row-wrap">
+    <summary class="hist-row">
+      <span class="hist-date">{{ entry.data_str }}</span>
+      <div class="hist-vals">
+        {% for chip in entry.chips %}
+        <span class="hist-chip {{ chip.status_class }}">
+          {% if chip.label %}{{ chip.label }} {% endif %}{{ chip.value }}
+        </span>
+        {% endfor %}
+      </div>
+      <div class="hist-acts">
+        <button class="act-btn" style="padding:4px 8px;font-size:11px"
+          onclick="event.preventDefault();openEdit(this)"
+          data-data="{{ entry.data_iso }}"
+          data-dor="{{ entry.dor or '' }}"
+          data-en="{{ entry.en or '' }}"
+          data-sh="{{ entry.sh or '' }}"
+          data-sq="{{ entry.sq or '' }}"
+          data-me="{{ entry.me or '' }}"
+          data-st="{{ entry.st or '' }}"
+          data-sr="{{ entry.sr or '' }}"
+          data-al="{{ entry.al | e }}"
+          data-ci="{{ entry.ci or '' }}"
+          data-so="{{ entry.so or '' }}"
+          data-ex="{{ entry.ex | e }}"
+          data-alim="{{ entry.alim if entry.alim is not none else '' }}"
+          data-relato="{{ entry.nota_esc }}"
+          data-rj="{{ entry.rj_esc }}"
+          data-ctx="{{ entry.ctx_esc }}"
+        >✎</button>
+        <button class="act-btn del" style="padding:4px 8px;font-size:11px"
+          onclick="event.preventDefault();delDay('{{ entry.data_iso }}')">×</button>
+      </div>
+    </summary>
+
+    <div class="hist-detail">
+
+      {# Relato #}
+      {% if entry.nota_raw %}
+      <div class="hist-detail-relato">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Relato</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            {% if entry.nota_sent %}
+            <span class="{{ entry.nota_sent_class }}">• {{ entry.nota_sent }}</span>
+            {% endif %}
+            <button class="relato-edit-btn" onclick="abrirRelatoEmbutido('{{ entry.data_iso }}')" style="font-size:11px">✏ editar</button>
+          </div>
+        </div>
+        <div style="font-size:13px;color:var(--text2)">{{ entry.nota_resumo | e }}</div>
+        {% if entry.nota_cats %}
+        <div class="relato-cats" style="margin-top:6px">
+          {% for cat in entry.nota_cats %}
+          <span class="relato-tag">{{ cat | e }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if entry.nota_raw | length > 5 %}
+        <details class="relato-expand" style="margin-top:6px">
+          <summary>ver relato completo</summary>
+          <div class="relato-raw-text">{{ entry.nota_raw | e }}</div>
+        </details>
+        {% endif %}
+        <div id="relato-{{ entry.data_iso }}-form" style="display:none;margin-top:10px">
+          <textarea id="relato-{{ entry.data_iso }}-input"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;padding:10px;font-family:inherit;resize:vertical"
+            rows="3">{{ entry.nota_raw | e }}</textarea>
+          <button class="relato-submit" style="margin-top:6px;font-size:13px"
+            onclick="salvarRelatoEmbutido('{{ entry.data_iso }}')">Salvar</button>
+        </div>
+      </div>
+
+      {% elif entry.is_hoje %}
+      <div class="hist-detail-relato">
+        <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Relato</div>
+        <div id="relato-{{ entry.data_iso }}-form">
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <button class="relato-btn" onclick="abrirRelatoEmbutido('{{ entry.data_iso }}')">✏️ Texto</button>
+            <button class="relato-btn relato-btn-audio" onclick="relatoAudio()">🎤 Áudio</button>
+          </div>
+          <div id="relato-{{ entry.data_iso }}-textarea" style="display:none">
+            <textarea id="relato-{{ entry.data_iso }}-input"
+              placeholder="Algo pontual a registrar..."
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;padding:10px;font-family:inherit;resize:vertical"
+              rows="3"></textarea>
+            <button class="relato-submit" style="margin-top:6px;font-size:13px"
+              onclick="salvarRelatoEmbutido('{{ entry.data_iso }}')">Salvar</button>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Exercício #}
+      <div class="hist-detail-row">
+        <span class="hist-detail-lbl">Exercício</span>
+        <span style="color:{{ entry.ex_cor }};font-size:13px;font-weight:600">{{ (entry.ex or 'Nenhum') | e }}</span>
+      </div>
+
+      {# Contextos #}
+      {% if entry.ctx_dia %}
+      <div class="hist-detail-row">
+        <span class="hist-detail-lbl">Contextos</span>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          {% for c in entry.ctx_dia %}
+          <span class="relato-tag">{{ c | e }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {# Alimentação #}
+      {% if entry.alim is not none %}
+      <div class="hist-detail-row">
+        <span class="hist-detail-lbl">Alimentação</span>
+        <span style="font-size:13px;font-weight:600;color:var(--text2)">{{ entry.alim }} — {{ entry.alim | alim_label }}</span>
+      </div>
+      {% endif %}
+
+    </div>
+  </details>
+  {% endif %}
+
+  {% endfor %}
+</div>

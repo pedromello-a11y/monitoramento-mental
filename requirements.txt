@@ -5,3 +5,5 @@ python-dotenv
 httpx
 openai
 python-multipart
+jinja2
+aiofiles

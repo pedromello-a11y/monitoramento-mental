@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Monitoramento Mental{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/dashboard.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block body %}
+{% if erro %}
+<div style="padding:40px 24px;text-align:center">
+  <div style="font-size:36px;margin-bottom:12px">⚠</div>
+  <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px">Erro ao carregar</div>
+  <div style="font-size:13px;color:var(--text2)">{{ erro }}</div>
+</div>
+{% else %}
+
+{# ── Header ─────────────────────────────────────────────────────── #}
+<div class="header">
+  <div class="header-left">
+    <div class="h-eyebrow">Monitoramento Mental</div>
+    <div class="greeting">{{ saudacao }}</div>
+  </div>
+  <div class="header-right">
+    {% if checkin_status == "completo" %}
+      <span class="checkin-done">✓ Check-in feito</span>
+      <button class="checkin-edit-btn" onclick="openEdit(this)"
+        data-data="{{ checkin_hoje_edit.data }}"
+        data-dor="{{ checkin_hoje_edit.dor }}"
+        data-en="{{ checkin_hoje_edit.en }}"
+        data-sh="{{ checkin_hoje_edit.sh }}"
+        data-sq="{{ checkin_hoje_edit.sq }}"
+        data-me="{{ checkin_hoje_edit.me }}"
+        data-st="{{ checkin_hoje_edit.st }}"
+        data-sr="{{ checkin_hoje_edit.sr }}"
+        data-al="{{ checkin_hoje_edit.al }}"
+        data-ci="{{ checkin_hoje_edit.ci }}"
+        data-so="{{ checkin_hoje_edit.so }}"
+        data-ex="{{ checkin_hoje_edit.ex }}"
+        data-alim="{{ checkin_hoje_edit.alim }}"
+        data-relato="{{ checkin_hoje_edit.relato }}"
+        data-rj="{{ checkin_hoje_edit.rj }}"
+        data-ctx="{{ checkin_hoje_edit.ctx }}"
+      >✎ Editar</button>
+    {% elif checkin_status == "parcial" %}
+      <span class="checkin-parcial">⏳ Parcial</span>
+      <button class="checkin-edit-btn" onclick="openEdit(this)"
+        data-data="{{ checkin_hoje_edit.data }}"
+        data-dor="{{ checkin_hoje_edit.dor }}"
+        data-en="{{ checkin_hoje_edit.en }}"
+        data-sh="{{ checkin_hoje_edit.sh }}"
+        data-sq="{{ checkin_hoje_edit.sq }}"
+        data-me="{{ checkin_hoje_edit.me }}"
+        data-st="{{ checkin_hoje_edit.st }}"
+        data-sr="{{ checkin_hoje_edit.sr }}"
+        data-al="{{ checkin_hoje_edit.al }}"
+        data-ci="{{ checkin_hoje_edit.ci }}"
+        data-so="{{ checkin_hoje_edit.so }}"
+        data-ex="{{ checkin_hoje_edit.ex }}"
+        data-alim="{{ checkin_hoje_edit.alim }}"
+        data-relato="{{ checkin_hoje_edit.relato }}"
+        data-rj="{{ checkin_hoje_edit.rj }}"
+        data-ctx="{{ checkin_hoje_edit.ctx }}"
+      >✎ Editar</button>
+      <a class="checkin-btn" href="/checkin-web" style="background:#1c3a1c;color:#86EFAC;border:1px solid #1a5c1a">✔ Completar</a>
+    {% else %}
+      <a class="checkin-btn" href="/checkin-web">+ Check-in</a>
+    {% endif %}
+    <a class="cfg-link" href="/dashboard/configuracoes" title="Configurações">⚙</a>
+  </div>
+</div>
+
+{# ── Hero ────────────────────────────────────────────────────────── #}
+{% include "partials/hero.html" %}
+
+{% if not has_data %}
+{# ── Sem dados: streak vazio + empty state ───────────────────────── #}
+{% include "partials/streak.html" %}
+<div style="margin:0 24px">
+  <div class="empty-state">
+    <div class="es-icon">📋</div>
+    <div class="es-title">Nenhum registro ainda</div>
+    <div class="es-sub">Seus dados vão aparecer aqui depois do primeiro check-in.</div>
+  </div>
+</div>
+
+{% else %}
+
+{# ── Streak + Heatmap ────────────────────────────────────────────── #}
+<div class="sec-label">Consistência</div>
+{% include "partials/streak.html" %}
+
+{# ── Médias da semana ────────────────────────────────────────────── #}
+<details class="collapsible-section" open>
+  <summary class="sec-label">Média da semana <span class="toggle-icon">▼</span></summary>
+  {% include "partials/medias.html" %}
+</details>
+
+{# ── Exercício ────────────────────────────────────────────────────── #}
+<div class="sec-label">Exercício</div>
+{% include "partials/exercicio.html" %}
+
+{# ── Tendência ────────────────────────────────────────────────────── #}
+<details class="collapsible-section" open>
+  <summary class="sec-label">Tendência <span class="toggle-icon">▼</span></summary>
+  {% include "partials/tendencia.html" %}
+</details>
+
+{# ── Remédios ─────────────────────────────────────────────────────── #}
+<div class="sec-label">Remédios</div>
+{% include "partials/remedios.html" %}
+
+{# ── Histórico ────────────────────────────────────────────────────── #}
+<details class="collapsible-section" id="hist-section">
+  <summary class="sec-label">Histórico <span class="toggle-icon">▼</span></summary>
+  {% include "partials/historico.html" %}
+</details>
+
+{% endif %}
+
+{# ── Modal editar ─────────────────────────────────────────────────── #}
+{% include "partials/modal_editar.html" %}
+
+{# ── Toast undo remédios ──────────────────────────────────────────── #}
+<div id="remed-toast" class="remed-toast">
+  <span id="remed-toast-msg">Remédio atualizado</span>
+  <button class="remed-toast-undo" onclick="desfazerRemed()">Desfazer</button>
+  <div id="remed-toast-bar" class="remed-toast-bar"></div>
+</div>
+
+{# ── Form delete (oculto) ─────────────────────────────────────────── #}
+<form id="form-del" method="post" action="/dashboard/remover" style="display:none">
+  <input type="hidden" name="data" id="del-data">
+</form>
+
+{# ── Chart data JSON ──────────────────────────────────────────────── #}
+<script type="application/json" id="chart-data">{{ chart_data_30d | safe }}</script>
+
+{% endif %}
+
+<script src="/static/js/dashboard.js"></script>
+{% endblock %}

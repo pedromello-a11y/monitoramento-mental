@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações — Monitoramento Mental{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/config.css">
+{% endblock %}
+
+{% block body %}
+<div class="cfg-header">
+  <a href="/dashboard" class="cfg-back">← voltar</a>
+  <h1>Configurações</h1>
+</div>
+
+<div class="cfg-tabs">
+  <button class="cfg-tab {% if aba != 'contextos' %}active{% endif %}" onclick="showAba('campos')">✤ Campos</button>
+  <button class="cfg-tab {% if aba == 'contextos' %}active{% endif %}" onclick="showAba('contextos')">🏷 Contextos</button>
+</div>
+
+{# ── Aba Campos ───────────────────────────────────────────────────── #}
+<div class="cfg-panel {% if aba != 'contextos' %}active{% endif %}" id="panel-campos">
+
+  {# Campos fixos #}
+  {% for campo, meta in campos_fixos_meta.items() %}
+  {% set db = campos_db.get(campo, {}) %}
+  {% set ativo = db.get('ativo', True) %}
+  <div class="cfg-item">
+    <div class="cfg-item-left">
+      <div class="cfg-item-name">{{ meta.emoji }} {{ meta.label }}</div>
+      <div class="cfg-item-meta">
+        <span class="cfg-type-badge type-{{ meta.tipo.replace('_', '-') if meta.tipo else 'custom' }}">
+          {% if meta.tipo == 'escala_1_5' %}Escala 1-5
+          {% elif meta.tipo == 'numerico' %}Numérico
+          {% elif meta.tipo == 'opcoes' %}Opções
+          {% else %}{{ meta.tipo }}
+          {% endif %}
+        </span>
+        {% if meta.get('opcoes') %} &bull; {{ meta.opcoes | e }}{% endif %}
+      </div>
+    </div>
+    <div class="cfg-item-right">
+      <form method="post" action="/dashboard/configuracoes/campo-toggle">
+        <input type="hidden" name="campo" value="{{ campo }}">
+        <label class="cfg-toggle" title="{{ 'Ativo' if ativo else 'Inativo' }}">
+          <input type="checkbox" {% if ativo %}checked{% endif %} onchange="this.form.submit()">
+          <span class="cfg-slider"></span>
+        </label>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+
+  {# Campos custom #}
+  {% for cc in campos_custom %}
+  {% set tipo_cc = cc.tipo_input or 'custom' %}
+  <div class="cfg-item">
+    <div class="cfg-item-left">
+      <div class="cfg-item-name">✦ {{ cc.nome | e }}</div>
+      <div class="cfg-item-meta">
+        <span class="cfg-type-badge type-{{ tipo_cc.replace('_', '-') }}">
+          {% if tipo_cc == 'escala_1_5' %}Escala 1-5
+          {% elif tipo_cc == 'numerico' %}Numérico
+          {% elif tipo_cc == 'opcoes' %}Opções
+          {% else %}Personalizado
+          {% endif %}
+        </span>
+        {% if cc.opcoes_texto %} &bull; {{ cc.opcoes_texto | e }}{% endif %}
+        <span style="color:#F9A8D4;font-size:10px"> personalizado</span>
+      </div>
+    </div>
+    <div class="cfg-item-right">
+      <button class="cfg-btn"
+        onclick="openEditCampo({{ cc.id }}, '{{ cc.nome | e }}', '{{ tipo_cc }}', '{{ (cc.opcoes_texto or '') | e }}')">
+        editar
+      </button>
+      <form method="post" action="/dashboard/configuracoes/campo-custom-toggle" style="display:inline">
+        <input type="hidden" name="id" value="{{ cc.id }}">
+        <label class="cfg-toggle">
+          <input type="checkbox" {% if cc.ativo %}checked{% endif %} onchange="this.form.submit()">
+          <span class="cfg-slider"></span>
+        </label>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+
+  {# Form adicionar campo custom #}
+  <div class="cfg-add-form">
+    <div class="cfg-add-title">+ Novo campo personalizado</div>
+    <form method="post" action="/dashboard/configuracoes/campo-custom-add">
+      <div class="cfg-row">
+        <div class="cfg-field">
+          <label class="cfg-label">Nome do campo</label>
+          <input class="cfg-input" type="text" name="nome" placeholder="Ex: Ansiedade, Foco..." required maxlength="50">
+        </div>
+        <div class="cfg-field">
+          <label class="cfg-label">Tipo</label>
+          <select class="cfg-select" name="tipo_input" id="tipo-select" onchange="tipoChange(this.value)">
+            <option value="escala_1_5">Escala 1-5</option>
+            <option value="numerico">Numérico (texto livre)</option>
+            <option value="opcoes">Opções (múltipla escolha)</option>
+          </select>
+        </div>
+      </div>
+      <div class="cfg-field" id="opcoes-field" style="display:none;margin-top:10px">
+        <label class="cfg-label">Opções (separadas por vírgula)</label>
+        <input class="cfg-input" type="text" name="opcoes_texto" id="opcoes-input" placeholder="Ex: Sim, Não, Às vezes">
+      </div>
+      <button type="submit" class="cfg-submit" style="margin-top:14px">Adicionar campo</button>
+    </form>
+  </div>
+</div>
+
+{# ── Aba Contextos ────────────────────────────────────────────────── #}
+<div class="cfg-panel {% if aba == 'contextos' %}active{% endif %}" id="panel-contextos">
+
+  {% for r in contextos_db %}
+  <div class="cfg-item">
+    <div class="cfg-item-left">
+      <div class="cfg-item-name" style="color:{{ 'var(--text)' if r.ativo else 'var(--text3)' }}">
+        {{ r.label | e }}
+      </div>
+    </div>
+    <div class="cfg-item-right">
+      <form method="post" action="/dashboard/configuracoes/contexto-toggle" style="display:inline">
+        <input type="hidden" name="id" value="{{ r.id }}">
+        <button type="submit" class="cfg-btn {% if r.ativo %}danger{% endif %}">
+          {{ 'desativar' if r.ativo else 'reativar' }}
+        </button>
+      </form>
+      <form method="post" action="/dashboard/configuracoes/contexto-remover" style="display:inline"
+        onsubmit="return confirm('Remover contexto &quot;{{ r.label | e }}&quot;?')">
+        <input type="hidden" name="id" value="{{ r.id }}">
+        <button type="submit" class="cfg-btn danger">remover</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="cfg-add-form">
+    <div class="cfg-add-title">+ Novo contexto</div>
+    <form method="post" action="/dashboard/configuracoes/contexto-add" style="display:flex;gap:10px;flex-wrap:wrap">
+      <input class="cfg-input" type="text" name="label"
+        placeholder="Ex: reunião, viagem, dor de cabeça..." required maxlength="60"
+        style="flex:1;min-width:180px">
+      <button type="submit" class="cfg-submit">Adicionar</button>
+    </form>
+  </div>
+</div>
+
+{# ── Modal editar campo custom ────────────────────────────────────── #}
+<div class="cfg-modal" id="modal-campo">
+  <div class="cfg-modal-box">
+    <div class="cfg-modal-title">✎ Editar campo</div>
+    <form method="post" action="/dashboard/configuracoes/campo-custom-editar">
+      <input type="hidden" name="id" id="edit-campo-id">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="cfg-field">
+          <label class="cfg-label">Nome</label>
+          <input class="cfg-input" type="text" name="nome" id="edit-campo-nome" required maxlength="50">
+        </div>
+        <div class="cfg-field">
+          <label class="cfg-label">Tipo</label>
+          <select class="cfg-select" name="tipo_input" id="edit-campo-tipo" onchange="editTipoChange(this.value)">
+            <option value="escala_1_5">Escala 1-5</option>
+            <option value="numerico">Numérico</option>
+            <option value="opcoes">Opções</option>
+          </select>
+        </div>
+        <div class="cfg-field" id="edit-opcoes-field">
+          <label class="cfg-label">Opções (separadas por vírgula)</label>
+          <input class="cfg-input" type="text" name="opcoes_texto" id="edit-campo-opcoes"
+            placeholder="Ex: Sim, Não, Às vezes">
+        </div>
+      </div>
+      <div class="cfg-modal-footer">
+        <button type="button" class="cfg-modal-cancel" onclick="closeCampoModal()">Cancelar</button>
+        <button type="submit" class="cfg-modal-save">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function showAba(aba) {
+  document.querySelectorAll('.cfg-tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.cfg-panel').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelector('.cfg-tab[onclick="showAba(\'' + aba + '\')"]').classList.add('active');
+  document.getElementById('panel-' + aba).classList.add('active');
+}
+function tipoChange(v) {
+  document.getElementById('opcoes-field').style.display = v === 'opcoes' ? 'block' : 'none';
+  document.getElementById('opcoes-input').required = v === 'opcoes';
+}
+function editTipoChange(v) {
+  document.getElementById('edit-opcoes-field').style.display = v === 'opcoes' ? 'block' : 'none';
+}
+function openEditCampo(id, nome, tipo, opcoes) {
+  document.getElementById('edit-campo-id').value = id;
+  document.getElementById('edit-campo-nome').value = nome;
+  document.getElementById('edit-campo-tipo').value = tipo;
+  document.getElementById('edit-campo-opcoes').value = opcoes;
+  editTipoChange(tipo);
+  document.getElementById('modal-campo').classList.add('open');
+}
+function closeCampoModal() {
+  document.getElementById('modal-campo').classList.remove('open');
+}
+</script>
+{% endblock %}

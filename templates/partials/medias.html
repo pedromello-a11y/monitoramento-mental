@@ -1,0 +1,51 @@
+{# ── Médias da semana ─────────────────────────────────────────────── #}
+{# Macro para linha de dimensão com barra e delta #}
+{% macro dim_row(label, val, max_val=5, invert=False, delta_key=None) %}
+{% set color = val | score_color(invert) %}
+{% if val is not none %}
+{% set pct = ((val | float) / max_val * 100) | int %}
+<div class="dim-row">
+  <span class="dim-lbl">{{ label }}</span>
+  <div class="dim-val-wrap">
+    {% if delta_key and deltas[delta_key] and deltas[delta_key].valor %}
+    <span class="dim-delta {{ deltas[delta_key].classe }}">{{ deltas[delta_key].sinal }} {{ deltas[delta_key].valor }}</span>
+    {% endif %}
+    <span class="dim-val" style="color:{{ color }}">{{ val }}</span>
+    <div class="dim-bar"><div class="dim-bar-fill" style="width:{{ pct }}%;background:{{ color }}"></div></div>
+  </div>
+</div>
+{% else %}
+<div class="dim-row">
+  <span class="dim-lbl">{{ label }}</span>
+  <span style="color:var(--text3);font-size:13px">—</span>
+</div>
+{% endif %}
+{% endmacro %}
+
+<div class="dim-grid">
+  <div class="dim-card">
+    <div class="dim-title">✨ Mental &amp; Emocional</div>
+    {{ dim_row("Humor",          media.mental,   5,  False, "mental") }}
+    {{ dim_row("Stress trabalho",media.stress_t, 5,  True,  "stress_t") }}
+    {{ dim_row("Stress rel.",    media.stress_r, 5,  True,  "stress_r") }}
+  </div>
+  <div class="dim-card">
+    <div class="dim-title">⚡ Energia &amp; Sono</div>
+    {{ dim_row("Energia",        media.energia,  5,  False, "energia") }}
+    {{ dim_row("Sono (h)",       media.sono_h,   16, False, "sono_h") }}
+    {{ dim_row("Qualidade sono", media.sono_q,   5,  False, "sono_q") }}
+  </div>
+  <div class="dim-card">
+    <div class="dim-title">❤ Físico &amp; Social</div>
+    {{ dim_row("Dor física",       media.dor,    5,  True,  "dor") }}
+    {{ dim_row("Desempenho social",media.social, 5,  False, "social") }}
+  </div>
+  <div class="dim-card">
+    <div class="dim-title">☕ Hábitos</div>
+    {{ dim_row("Cigarros/dia", media.cigarros, 20, True, "cigarros") }}
+    <div class="dim-row">
+      <span class="dim-lbl">Álcool (freq.)</span>
+      <span style="font-size:13px;font-weight:600;color:var(--text)">{{ alcool_display }}</span>
+    </div>
+  </div>
+</div>

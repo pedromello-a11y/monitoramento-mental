@@ -1,0 +1,23 @@
+{# ── Gráfico de tendências ────────────────────────────────────────── #}
+<div class="chart-card">
+  <div class="chart-header">
+    <div class="chart-toggles" id="chart-toggles">
+      <button class="chart-toggle on" data-serie="mental"   style="border-color:#86EFAC;background:#86EFAC22;color:#86EFAC" onclick="toggleSerie(this)">Humor</button>
+      <button class="chart-toggle on" data-serie="energia"  style="border-color:#FCD34D;background:#FCD34D22;color:#FCD34D" onclick="toggleSerie(this)">Energia</button>
+      <button class="chart-toggle on" data-serie="sono"     style="border-color:#A78BFA;background:#A78BFA22;color:#A78BFA" onclick="toggleSerie(this)">Sono (h)</button>
+      <button class="chart-toggle"    data-serie="sono_q"   style="border-color:#7DD3FC" onclick="toggleSerie(this)">Sono qual.</button>
+      <button class="chart-toggle"    data-serie="dor"      style="border-color:#FCA5A5" onclick="toggleSerie(this)">Dor</button>
+      <button class="chart-toggle"    data-serie="stress_t" style="border-color:#F97316" onclick="toggleSerie(this)">Stress trab.</button>
+      <button class="chart-toggle"    data-serie="stress_r" style="border-color:#FB923C" onclick="toggleSerie(this)">Stress rel.</button>
+      <button class="chart-toggle"    data-serie="social"   style="border-color:#34D399" onclick="toggleSerie(this)">Social</button>
+      <button class="chart-toggle"    data-serie="rivotril" style="border-color:#C084FC" onclick="toggleSerie(this)">Rivotril</button>
+      <button class="chart-toggle"    data-serie="zolpidem" style="border-color:#67E8F9" onclick="toggleSerie(this)">Zolpidem</button>
+    </div>
+    <div class="chart-range-btns">
+      <button class="range-btn active" onclick="setRange(7, this)">7d</button>
+      <button class="range-btn" onclick="setRange(14, this)">14d</button>
+      <button class="range-btn" onclick="setRange(30, this)">30d</button>
+    </div>
+  </div>
+  <canvas id="trend-chart" height="160"></canvas>
+</div>

@@ -1,0 +1,20 @@
+{# ── Streak + Heatmap ────────────────────────────────────────────── #}
+<div class="streak-card">
+  <div class="streak-row">
+    <div class="streak-num">🔥 {{ streak_atual }}</div>
+    <div class="streak-info">
+      <div class="streak-frase">{{ streak_frase }}</div>
+      <div class="streak-max">Máximo: {{ streak_maximo }} dias</div>
+    </div>
+  </div>
+  {% if has_data %}
+  <div class="heatmap">
+    {% for dot in heatmap_dots %}
+    <div class="dot"
+      style="background:{{ dot.color }}"
+      title="{{ dot.date_pt }}{% if dot.mental is not none %} — {{ dot.mental }}{% else %} — sem dado{% endif %}">
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
