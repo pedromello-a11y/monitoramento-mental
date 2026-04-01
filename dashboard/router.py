@@ -301,8 +301,7 @@ async def dashboard_get(request: Request):
         session_hoje = await get_session_hoje(pool)
         rows_tendencia = await get_checkins_tendencia(pool, dias=30)
     except Exception as e:
-        return templates.TemplateResponse("dashboard.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "dashboard.html", {
             "erro": str(e),
         })
 
@@ -448,7 +447,6 @@ async def dashboard_get(request: Request):
     alcool_display = max(set(alcool_vals), key=alcool_vals.count) if alcool_vals else "—"
 
     ctx = {
-        "request": request,
         "saudacao": saudacao,
         "hoje": hoje,
         "hoje_iso": hoje.isoformat(),
@@ -489,7 +487,7 @@ async def dashboard_get(request: Request):
         "rows": rows,
         "has_data": bool(rows),
     }
-    return templates.TemplateResponse("dashboard.html", ctx)
+    return templates.TemplateResponse(request, "dashboard.html", ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -678,8 +676,7 @@ async def contextos_editor_get():
 async def contextos_editor_get_legacy(request: Request):
     pool = get_pool()
     rows = await get_contextos_config_all(pool)
-    return templates.TemplateResponse("configuracoes.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "configuracoes.html", {
         "aba": "contextos",
         "campos_db": {},
         "campos_fixos_meta": _CAMPOS_FIXOS_META,
@@ -717,8 +714,7 @@ async def configuracoes_get(request: Request, aba: str = "campos"):
     contextos_db = await get_contextos_config_all(pool)
     campos_custom = await get_campos_custom(pool)
 
-    return templates.TemplateResponse("configuracoes.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "configuracoes.html", {
         "aba": aba,
         "campos_db": campos_config,
         "campos_fixos_meta": _CAMPOS_FIXOS_META,
