@@ -134,7 +134,7 @@ async def get_checkins_tendencia(pool, user_id=1, dias=30) -> list:  # TODO: aut
                    saude_mental, stress_trabalho, stress_relacionamento,
                    desempenho_social, remedios_tomados
             FROM checkins WHERE user_id = $1
-              AND data >= (NOW() AT TIME ZONE 'America/Sao_Paulo')::date - $2
+              AND data >= (NOW() AT TIME ZONE 'America/Sao_Paulo')::date - ($2 * INTERVAL '1 day')
             ORDER BY data ASC
             """,
             user_id,
