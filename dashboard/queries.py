@@ -24,14 +24,39 @@ async def get_checkins_semana(pool, user_id=1) -> list:  # TODO: auth
 
 
 async def get_streak(pool, user_id=1) -> dict:  # TODO: auth
+    """Calcula streak em tempo real a partir dos checkins."""
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT streak_atual, streak_maximo FROM streak WHERE user_id = $1",
+        rows = await conn.fetch(
+            "SELECT data FROM checkins WHERE user_id=$1 ORDER BY data DESC",
             user_id,
         )
-    if row:
-        return dict(row)
-    return {"streak_atual": 0, "streak_maximo": 0}
+    if not rows:
+        return {"streak_atual": 0, "streak_maximo": 0}
+
+    from datetime import date, timedelta
+    hoje = date.today()
+    datas = {r["data"] for r in rows}
+
+    # streak atual: conta dias consecutivos terminando hoje ou ontem
+    streak_atual = 0
+    cursor = hoje if hoje in datas else hoje - timedelta(days=1)
+    while cursor in datas:
+        streak_atual += 1
+        cursor -= timedelta(days=1)
+
+    # streak máximo: percorre todos os checkins
+    sorted_dates = sorted(datas)
+    maximo = 0
+    atual = 1
+    for i in range(1, len(sorted_dates)):
+        if (sorted_dates[i] - sorted_dates[i - 1]).days == 1:
+            atual += 1
+            maximo = max(maximo, atual)
+        else:
+            atual = 1
+    maximo = max(maximo, atual)
+
+    return {"streak_atual": streak_atual, "streak_maximo": maximo}
 
 
 async def get_media_semana(pool, user_id=1) -> dict:  # TODO: auth
