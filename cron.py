@@ -72,10 +72,14 @@ async def cron_checkin(x_cron_secret: str | None = Header(default=None)):
                 "SELECT streak_atual FROM streak WHERE user_id = $1", u["id"]
             )
         streak_atual = row["streak_atual"] if row else 0
-        await send_message(u["whatsapp"], f"🔥 {streak_atual} dias seguidos. Hora do check-in de hoje.\n\nResponda */checkin* aqui ou acesse:\n{APP_URL}/checkin-web")
+        ok = await send_message(u["whatsapp"], f"🔥 {streak_atual} dias seguidos. Hora do check-in de hoje.\n\nResponda */checkin* aqui ou acesse:\n{APP_URL}/checkin-web")
         async with pool.acquire() as conn:
             await _registrar_envio(conn, u["id"], "checkin_22h", idem_key)
-        sent += 1
+        if ok:
+            sent += 1
+        else:
+            import logging
+            logging.warning(f"[cron/checkin] send_message falhou para user {u['id']} ({u['whatsapp']})")
 
     return {"status": "ok", "processed": processados, "sent": sent,
             "skipped_completed": skipped_completed, "skipped_already_sent": skipped_already_sent}
@@ -104,10 +108,14 @@ async def cron_lembrete1(x_cron_secret: str | None = Header(default=None)):
             if await _ja_enviado_hoje(conn, idem_key):
                 skipped_already_sent += 1
                 continue
-        await send_message(u["whatsapp"], f"Ainda dá tempo para registrar hoje. 🙂\n\n*/checkin* aqui ou pelo site:\n{APP_URL}/checkin-web")
+        ok = await send_message(u["whatsapp"], f"Ainda dá tempo para registrar hoje. 🙂\n\n*/checkin* aqui ou pelo site:\n{APP_URL}/checkin-web")
         async with pool.acquire() as conn:
             await _registrar_envio(conn, u["id"], "lembrete_22h30", idem_key)
-        sent += 1
+        if ok:
+            sent += 1
+        else:
+            import logging
+            logging.warning(f"[cron/lembrete1] send_message falhou para user {u['id']}")
 
     return {"status": "ok", "processed": processados, "sent": sent,
             "skipped_completed": skipped_completed, "skipped_already_sent": skipped_already_sent}
@@ -140,13 +148,17 @@ async def cron_lembrete2(x_cron_secret: str | None = Header(default=None)):
                 "SELECT streak_atual FROM streak WHERE user_id = $1", u["id"]
             )
         streak_atual = row["streak_atual"] if row else 0
-        await send_message(
+        ok = await send_message(
             u["whatsapp"],
             f"⚠️ Última chance hoje.\n{streak_atual} dias. Vai perder por falta de 60 segundos?\n\n*/checkin* aqui ou:\n{APP_URL}/checkin-web",
         )
         async with pool.acquire() as conn:
             await _registrar_envio(conn, u["id"], "lembrete_23h15", idem_key)
-        sent += 1
+        if ok:
+            sent += 1
+        else:
+            import logging
+            logging.warning(f"[cron/lembrete2] send_message falhou para user {u['id']}")
 
     return {"status": "ok", "processed": processados, "sent": sent,
             "skipped_completed": skipped_completed, "skipped_already_sent": skipped_already_sent}
@@ -202,6 +214,56 @@ async def migrate_remedios_doses(x_cron_secret: str | None = Header(default=None
             "SELECT nome, dose, dose_padrao FROM remedios WHERE user_id = 1 AND ativo = TRUE ORDER BY id"
         )
     return {"status": "ok", "remedios": [dict(r) for r in rows]}
+
+
+@router.post("/internal/reprocess/relatos")
+async def reprocess_relatos(x_cron_secret: str | None = Header(default=None)):
+    """Re-processa com IA todos os relatos que ainda não têm resumo_ia."""
+    _check_secret(x_cron_secret)
+    from config import OPENAI_API_KEY
+    if not OPENAI_API_KEY:
+        return {"error": "OPENAI_API_KEY não configurado"}
+    import json as _json
+    from openai import AsyncOpenAI
+    ai = AsyncOpenAI(api_key=OPENAI_API_KEY)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT data, nota_raw FROM checkins
+               WHERE user_id=1 AND nota_raw IS NOT NULL AND nota_raw != ''
+                 AND (nota_resumo_ia IS NULL OR nota_resumo_ia = '')
+               ORDER BY data DESC"""
+        )
+    processados = 0
+    for r in rows:
+        try:
+            resp = await ai.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": (
+                        "Você é um psicólogo analista de saúde mental. Analise o relato diário e retorne JSON com: "
+                        "resumo (frase curta, acolhedora, 1a pessoa, máx 90 chars), "
+                        "sentimento (positivo/neutro/negativo), "
+                        "categorias (lista de até 5 temas reutilizáveis em português, ex: ansiedade, sono, trabalho, relacionamento, humor, dor, energia, medicação, exercício). "
+                        "Responda APENAS com JSON válido."
+                    )},
+                    {"role": "user", "content": r["nota_raw"]},
+                ],
+                response_format={"type": "json_object"},
+            )
+            analysis = _json.loads(resp.choices[0].message.content)
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE checkins SET nota_sentimento=$1, nota_categorias=$2::jsonb, nota_resumo_ia=$3 WHERE user_id=1 AND data=$4",
+                    analysis.get("sentimento", ""),
+                    _json.dumps(analysis.get("categorias", []), ensure_ascii=False),
+                    analysis.get("resumo", ""),
+                    r["data"],
+                )
+            processados += 1
+        except Exception as e:
+            pass
+    return {"status": "ok", "processados": processados, "total": len(rows)}
 
 
 @router.post("/internal/migrate/escala-1-5")
