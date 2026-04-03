@@ -1,8 +1,11 @@
+import logging
 from datetime import date
 from fastapi import APIRouter, Header, HTTPException
 from config import INTERNAL_CRON_SECRET, APP_URL
 from database import get_pool
 from whapi import send_message
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -45,6 +48,39 @@ async def _registrar_envio(conn, user_id: int, tipo_evento: str, idem_key: str):
     )
 
 
+@router.get("/internal/cron/debug")
+async def cron_debug(x_cron_secret: str | None = Header(default=None)):
+    """Diagnóstico: retorna estado atual de cada condição do cron sem enviar nada."""
+    _check_secret(x_cron_secret)
+    pool = get_pool()
+    today = date.today().isoformat()
+    async with pool.acquire() as conn:
+        db_date = await conn.fetchval("SELECT CURRENT_DATE")
+        db_tz = await conn.fetchval("SELECT current_setting('TimeZone')")
+        usuarios = await conn.fetch("SELECT id, whatsapp FROM usuarios")
+        resultado = []
+        for u in usuarios:
+            idem_key = f"{u['id']}:checkin_22h:{today}"
+            concluiu = await _ja_concluiu_hoje(conn, u["id"])
+            ja_enviado = await _ja_enviado_hoje(conn, idem_key)
+            last_dispatch = await conn.fetchrow(
+                "SELECT sent_at, tipo_evento FROM event_dispatch_log WHERE user_id=$1 ORDER BY sent_at DESC LIMIT 1",
+                u["id"],
+            )
+            resultado.append({
+                "user_id": u["id"],
+                "python_today": today,
+                "db_current_date": str(db_date),
+                "db_timezone": db_tz,
+                "ja_concluiu_hoje": concluiu,
+                "ja_enviado_hoje": ja_enviado,
+                "idem_key": idem_key,
+                "ultimo_dispatch": str(last_dispatch["sent_at"]) if last_dispatch else None,
+                "ultimo_dispatch_tipo": last_dispatch["tipo_evento"] if last_dispatch else None,
+            })
+    return {"status": "ok", "checks": resultado}
+
+
 @router.post("/internal/cron/checkin")
 async def cron_checkin(x_cron_secret: str | None = Header(default=None)):
     _check_secret(x_cron_secret)
@@ -57,29 +93,35 @@ async def cron_checkin(x_cron_secret: str | None = Header(default=None)):
     skipped_completed = 0
     skipped_already_sent = 0
     today = date.today().isoformat()
+    logger.info(f"[cron/checkin] iniciando — today={today} usuarios={len(usuarios)}")
 
     for u in usuarios:
         processados += 1
         idem_key = f"{u['id']}:checkin_22h:{today}"
         async with pool.acquire() as conn:
-            if await _ja_concluiu_hoje(conn, u["id"]):
+            concluiu = await _ja_concluiu_hoje(conn, u["id"])
+            if concluiu:
+                logger.info(f"[cron/checkin] user {u['id']} skip: já concluiu hoje")
                 skipped_completed += 1
                 continue
-            if await _ja_enviado_hoje(conn, idem_key):
+            ja_enviado = await _ja_enviado_hoje(conn, idem_key)
+            if ja_enviado:
+                logger.info(f"[cron/checkin] user {u['id']} skip: já enviado (key={idem_key})")
                 skipped_already_sent += 1
                 continue
             row = await conn.fetchrow(
                 "SELECT streak_atual FROM streak WHERE user_id = $1", u["id"]
             )
         streak_atual = row["streak_atual"] if row else 0
+        logger.info(f"[cron/checkin] enviando para user {u['id']} streak={streak_atual}")
         ok = await send_message(u["whatsapp"], f"🔥 {streak_atual} dias seguidos. Hora do check-in de hoje.\n\nResponda */checkin* aqui ou acesse:\n{APP_URL}/checkin-web")
+        logger.info(f"[cron/checkin] send_message resultado={ok}")
         async with pool.acquire() as conn:
             await _registrar_envio(conn, u["id"], "checkin_22h", idem_key)
         if ok:
             sent += 1
         else:
-            import logging
-            logging.warning(f"[cron/checkin] send_message falhou para user {u['id']} ({u['whatsapp']})")
+            logger.warning(f"[cron/checkin] send_message falhou para user {u['id']} ({u['whatsapp']})")
 
     return {"status": "ok", "processed": processados, "sent": sent,
             "skipped_completed": skipped_completed, "skipped_already_sent": skipped_already_sent}
