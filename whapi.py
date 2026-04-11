@@ -3,6 +3,12 @@ import httpx
 from config import WA_GATEWAY_URL, WA_BRIDGE_SECRET
 
 
+async def send_buttons(to: str, text: str, options: list) -> bool:
+    """Envia mensagem com opções. Via gateway envia como texto simples."""
+    options_text = "\n".join(str(o) for o in options)
+    return await send_message(to, f"{text}\n\n{options_text}")
+
+
 async def send_message(to: str, text: str) -> bool:
     """Envia mensagem via gateway local (whatsapp-web.js).
 
