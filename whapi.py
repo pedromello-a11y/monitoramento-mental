@@ -1,49 +1,25 @@
+"""Cliente de envio WhatsApp via gateway whatsapp-web.js (wa_gateway)."""
 import httpx
-from config import WHAPI_TOKEN
-
-_BASE_URL = "https://gate.whapi.cloud"
-_HEADERS = lambda: {"Authorization": f"Bearer {WHAPI_TOKEN}"}
+from config import WA_GATEWAY_URL, WA_BRIDGE_SECRET
 
 
 async def send_message(to: str, text: str) -> bool:
-    if not WHAPI_TOKEN:
-        return False
-    try:
-        async with httpx.AsyncClient() as client:
-            r = await client.post(
-                f"{_BASE_URL}/messages/text",
-                headers=_HEADERS(),
-                json={"to": to, "body": text},
-                timeout=10,
-            )
-        return r.is_success
-    except Exception:
-        return False
+    """Envia mensagem via gateway local (whatsapp-web.js).
 
-
-async def send_buttons(to: str, text: str, options: list) -> bool:
-    """Envia mensagem interativa com lista de opções via Whapi.
-    Usa o tipo 'list' (suporta até 10 itens por seção, ideal para escalas 0-10).
+    `to` deve ser o número com DDI, ex: "5511999998888".
+    Retorna True se enviado com sucesso.
     """
-    if not WHAPI_TOKEN:
+    if not WA_GATEWAY_URL:
         return False
-    rows = [{"id": str(o), "title": str(o)} for o in options]
-    payload = {
-        "to": to,
-        "type": "list",
-        "body": {"text": text},
-        "action": {
-            "button": "Escolher",
-            "sections": [{"title": "Opções", "rows": rows}],
-        },
-    }
     try:
-        async with httpx.AsyncClient() as client:
+        headers = {"Content-Type": "application/json"}
+        if WA_BRIDGE_SECRET:
+            headers["X-Bridge-Secret"] = WA_BRIDGE_SECRET
+        async with httpx.AsyncClient(timeout=15) as client:
             r = await client.post(
-                f"{_BASE_URL}/messages/interactive",
-                headers=_HEADERS(),
-                json=payload,
-                timeout=10,
+                f"{WA_GATEWAY_URL.rstrip('/')}/send",
+                headers=headers,
+                json={"to": to, "body": text},
             )
         return r.is_success
     except Exception:
