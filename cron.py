@@ -1,9 +1,15 @@
 import logging
-from datetime import date
+import zoneinfo
 from fastapi import APIRouter, Header, HTTPException
 from config import INTERNAL_CRON_SECRET, APP_URL
 from database import get_pool
 from whapi import send_message
+
+BRT = zoneinfo.ZoneInfo("America/Sao_Paulo")
+
+def _today_brt() -> str:
+    from datetime import datetime
+    return datetime.now(BRT).date().isoformat()
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +98,7 @@ async def cron_checkin(x_cron_secret: str | None = Header(default=None)):
     sent = 0
     skipped_completed = 0
     skipped_already_sent = 0
-    today = date.today().isoformat()
+    today = _today_brt()
     logger.info(f"[cron/checkin] iniciando — today={today} usuarios={len(usuarios)}")
 
     for u in usuarios:
@@ -116,9 +122,9 @@ async def cron_checkin(x_cron_secret: str | None = Header(default=None)):
         logger.info(f"[cron/checkin] enviando para user {u['id']} streak={streak_atual}")
         ok = await send_message(u["whatsapp"], f"🔥 {streak_atual} dias seguidos. Hora do check-in de hoje.\n\nResponda */checkin* aqui ou acesse:\n{APP_URL}/checkin-web")
         logger.info(f"[cron/checkin] send_message resultado={ok}")
-        async with pool.acquire() as conn:
-            await _registrar_envio(conn, u["id"], "checkin_22h", idem_key)
         if ok:
+            async with pool.acquire() as conn:
+                await _registrar_envio(conn, u["id"], "checkin_22h", idem_key)
             sent += 1
         else:
             logger.warning(f"[cron/checkin] send_message falhou para user {u['id']} ({u['whatsapp']})")
@@ -138,7 +144,7 @@ async def cron_lembrete1(x_cron_secret: str | None = Header(default=None)):
     sent = 0
     skipped_completed = 0
     skipped_already_sent = 0
-    today = date.today().isoformat()
+    today = _today_brt()
 
     for u in usuarios:
         processados += 1
@@ -151,13 +157,12 @@ async def cron_lembrete1(x_cron_secret: str | None = Header(default=None)):
                 skipped_already_sent += 1
                 continue
         ok = await send_message(u["whatsapp"], f"Ainda dá tempo para registrar hoje. 🙂\n\n*/checkin* aqui ou pelo site:\n{APP_URL}/checkin-web")
-        async with pool.acquire() as conn:
-            await _registrar_envio(conn, u["id"], "lembrete_22h30", idem_key)
         if ok:
+            async with pool.acquire() as conn:
+                await _registrar_envio(conn, u["id"], "lembrete_22h30", idem_key)
             sent += 1
         else:
-            import logging
-            logging.warning(f"[cron/lembrete1] send_message falhou para user {u['id']}")
+            logger.warning(f"[cron/lembrete1] send_message falhou para user {u['id']}")
 
     return {"status": "ok", "processed": processados, "sent": sent,
             "skipped_completed": skipped_completed, "skipped_already_sent": skipped_already_sent}
@@ -174,7 +179,7 @@ async def cron_lembrete2(x_cron_secret: str | None = Header(default=None)):
     sent = 0
     skipped_completed = 0
     skipped_already_sent = 0
-    today = date.today().isoformat()
+    today = _today_brt()
 
     for u in usuarios:
         processados += 1
@@ -194,13 +199,12 @@ async def cron_lembrete2(x_cron_secret: str | None = Header(default=None)):
             u["whatsapp"],
             f"⚠️ Última chance hoje.\n{streak_atual} dias. Vai perder por falta de 60 segundos?\n\n*/checkin* aqui ou:\n{APP_URL}/checkin-web",
         )
-        async with pool.acquire() as conn:
-            await _registrar_envio(conn, u["id"], "lembrete_23h15", idem_key)
         if ok:
+            async with pool.acquire() as conn:
+                await _registrar_envio(conn, u["id"], "lembrete_23h15", idem_key)
             sent += 1
         else:
-            import logging
-            logging.warning(f"[cron/lembrete2] send_message falhou para user {u['id']}")
+            logger.warning(f"[cron/lembrete2] send_message falhou para user {u['id']}")
 
     return {"status": "ok", "processed": processados, "sent": sent,
             "skipped_completed": skipped_completed, "skipped_already_sent": skipped_already_sent}
@@ -217,7 +221,7 @@ async def cron_streak(x_cron_secret: str | None = Header(default=None)):
     sent = 0
     skipped_completed = 0
     skipped_already_sent = 0
-    today = date.today().isoformat()
+    today = _today_brt()
 
     for u in usuarios:
         processados += 1
@@ -229,13 +233,16 @@ async def cron_streak(x_cron_secret: str | None = Header(default=None)):
             if await _ja_enviado_hoje(conn, idem_key):
                 skipped_already_sent += 1
                 continue
-        await send_message(
+        ok = await send_message(
             u["whatsapp"],
             "Hoje não rolou registrar. Tudo bem.\nSeu histórico continua salvo.\nAmanhã você retoma. 🌙",
         )
-        async with pool.acquire() as conn:
-            await _registrar_envio(conn, u["id"], "streak_loss_23h59", idem_key)
-        sent += 1
+        if ok:
+            async with pool.acquire() as conn:
+                await _registrar_envio(conn, u["id"], "streak_loss_23h59", idem_key)
+            sent += 1
+        else:
+            logger.warning(f"[cron/streak] send_message falhou para user {u['id']}")
 
     return {"status": "ok", "processed": processados, "sent": sent,
             "skipped_completed": skipped_completed, "skipped_already_sent": skipped_already_sent}
